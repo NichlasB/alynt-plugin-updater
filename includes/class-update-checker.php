@@ -60,6 +60,7 @@ class Update_Checker {
 	public function register_hooks(): void {
 		add_filter( 'pre_set_site_transient_update_plugins', array( $this, 'check_for_updates' ) );
 		add_filter( 'plugins_api', array( $this, 'plugin_information' ), 10, 3 );
+		add_filter( 'upgrader_source_selection', array( $this, 'fix_source_directory' ), 10, 4 );
 	}
 
 	/**
@@ -209,6 +210,61 @@ class Update_Checker {
 		}
 
 		return $results;
+	}
+
+	/**
+	 * Fix the source directory name for GitHub downloads.
+	 *
+	 * GitHub zipballs extract to {owner}-{repo}-{hash} format.
+	 * This filter renames the folder to match the expected plugin slug.
+	 *
+	 * @param string       $source        File source location.
+	 * @param string       $remote_source Remote file source location.
+	 * @param \WP_Upgrader $upgrader      WP_Upgrader instance.
+	 * @param array        $args          Extra arguments passed to hooked filters.
+	 * @return string|WP_Error Corrected source path or WP_Error.
+	 */
+	public function fix_source_directory( string $source, string $remote_source, $upgrader, array $args ) {
+		if ( ! isset( $args['plugin'] ) || empty( $args['plugin'] ) ) {
+			return $source;
+		}
+
+		$plugin_file = $args['plugin'];
+		$plugins     = $this->scanner->get_github_plugins();
+
+		if ( ! isset( $plugins[ $plugin_file ] ) ) {
+			return $source;
+		}
+
+		$expected_slug = dirname( $plugin_file );
+		$source_slug   = basename( untrailingslashit( $source ) );
+
+		if ( $source_slug === $expected_slug ) {
+			return $source;
+		}
+
+		global $wp_filesystem;
+
+		if ( ! $wp_filesystem ) {
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+			WP_Filesystem();
+		}
+
+		$new_source = trailingslashit( dirname( untrailingslashit( $source ) ) ) . $expected_slug . '/';
+
+		if ( $wp_filesystem->move( $source, $new_source ) ) {
+			return $new_source;
+		}
+
+		return new WP_Error(
+			'rename_failed',
+			sprintf(
+				/* translators: 1: source folder, 2: destination folder */
+				__( 'Could not rename plugin folder from %1$s to %2$s.', 'alynt-plugin-updater' ),
+				$source_slug,
+				$expected_slug
+			)
+		);
 	}
 
 	/**
