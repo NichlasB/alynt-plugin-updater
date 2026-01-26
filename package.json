@@ -1,0 +1,21 @@
+{
+  "name": "alynt-plugin-updater",
+  "version": "1.0.0",
+  "description": "A lightweight WordPress plugin that enables automatic updates for GitHub-hosted plugins.",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "deploy": "bash deploy.sh",
+    "deploy:watch": "nodemon --watch assets/src --exec \"npm run build && npm run deploy\"",
+    "dev:all": "concurrently \"npm run dev\" \"npm run deploy:watch\"",
+    "lint": "eslint assets/src/**/*.js",
+    "lint:fix": "eslint assets/src/**/*.js --fix"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "esbuild": "^0.20.2",
+    "eslint": "^8.57.0",
+    "nodemon": "^3.0.3"
+  }
+}

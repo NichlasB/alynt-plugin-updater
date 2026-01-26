@@ -1,0 +1,31 @@
+.alynt-pu-settings h2 {
+  margin-top: 2rem;
+}
+
+.alynt-pu-settings .alynt-pu-actions {
+  margin: 1rem 0 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.alynt-pu-settings .alynt-pu-status-message {
+  font-weight: 600;
+}
+
+.alynt-pu-settings .alynt-pu-webhook-instructions {
+  margin: 1rem 0 2rem;
+  background: #fff;
+  border: 1px solid #ccd0d4;
+  padding: 1rem;
+}
+
+.alynt-pu-settings .alynt-pu-webhook-instructions summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.alynt-pu-plugins-table td,
+.alynt-pu-plugins-table th {
+  vertical-align: top;
+}

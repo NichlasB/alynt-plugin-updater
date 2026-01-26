@@ -1,0 +1,38 @@
+{
+  "name": "alynt/alynt-plugin-updater",
+  "description": "A lightweight WordPress plugin that enables automatic updates for GitHub-hosted plugins.",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
+  "require": {
+    "php": ">=7.4"
+  },
+  "require-dev": {
+    "dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+    "phpunit/phpunit": "^9.6",
+    "wp-coding-standards/wpcs": "^3.0"
+  },
+  "autoload": {
+    "classmap": [
+      "includes/",
+      "admin/"
+    ]
+  },
+  "autoload-dev": {
+    "classmap": [
+      "tests/"
+    ]
+  },
+  "scripts": {
+    "lint": "phpcs",
+    "lint:fix": "phpcbf",
+    "test": "phpunit"
+  },
+  "config": {
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    },
+    "sort-packages": true
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}

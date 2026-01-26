@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<ruleset name="Alynt Plugin Updater">
+  <description>WordPress coding standards for Alynt Plugin Updater.</description>
+
+  <rule ref="WordPress-Extra" />
+  <rule ref="WordPress-Docs" />
+
+  <exclude-pattern>vendor/*</exclude-pattern>
+  <exclude-pattern>node_modules/*</exclude-pattern>
+  <exclude-pattern>assets/dist/*</exclude-pattern>
+
+  <config name="installed_paths" value="vendor/wp-coding-standards/wpcs" />
+  <config name="text_domain" value="alynt-plugin-updater" />
+  <config name="minimum_supported_wp_version" value="6.0" />
+</ruleset>
