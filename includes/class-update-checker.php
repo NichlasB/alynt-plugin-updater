@@ -239,7 +239,13 @@ class Update_Checker {
 		$expected_slug = dirname( $plugin_file );
 		$source_slug   = basename( untrailingslashit( $source ) );
 
+		// Already correct name - no action needed.
 		if ( $source_slug === $expected_slug ) {
+			return $source;
+		}
+
+		// Check if this looks like a GitHub-style folder name (owner-repo-hash).
+		if ( strpos( $source_slug, '-' ) === false ) {
 			return $source;
 		}
 
@@ -252,8 +258,21 @@ class Update_Checker {
 
 		$new_source = trailingslashit( dirname( untrailingslashit( $source ) ) ) . $expected_slug . '/';
 
+		// If destination already exists, remove it first.
+		if ( $wp_filesystem->exists( $new_source ) ) {
+			$wp_filesystem->delete( $new_source, true );
+		}
+
 		if ( $wp_filesystem->move( $source, $new_source ) ) {
 			return $new_source;
+		}
+
+		// Fallback: try copy + delete instead of move (Windows compatibility).
+		if ( $wp_filesystem->copy( $source, $new_source, true, FS_CHMOD_DIR ) || copy_dir( $source, $new_source ) !== true ) {
+			if ( copy_dir( $source, $new_source ) === true ) {
+				$wp_filesystem->delete( $source, true );
+				return $new_source;
+			}
 		}
 
 		return new WP_Error(

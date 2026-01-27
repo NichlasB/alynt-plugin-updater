@@ -1,18 +1,18 @@
 <?php
 /**
  * Plugin Name:       Alynt Plugin Updater
- * Plugin URI:        https://github.com/[username]/alynt-plugin-updater
+ * Plugin URI:        https://github.com/NichlasB/alynt-plugin-updater
  * Description:       Enable automatic updates for GitHub-hosted WordPress plugins.
  * Version:           1.0.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
- * Author:            [Your Name]
- * Author URI:        https://[your-site].com
+ * Author:            Alynt
+ * Author URI:        https://alynt.com
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       alynt-plugin-updater
  * Domain Path:       /languages
- * GitHub Plugin URI: [username]/alynt-plugin-updater
+ * GitHub Plugin URI: NichlasB/alynt-plugin-updater
  *
  * @package AlyntPluginUpdater
  */
