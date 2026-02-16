@@ -13,11 +13,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Class Cron_Manager.
+ *
+ * @since 1.0.0
  */
 class Cron_Manager {
 	/**
 	 * Scheduled hook name.
 	 *
+	 * @since 1.0.0
 	 * @var string
 	 */
 	private const HOOK_NAME = 'alynt_pu_scheduled_check';
@@ -25,22 +28,35 @@ class Cron_Manager {
 	/**
 	 * Update checker.
 	 *
+	 * @since 1.0.0
 	 * @var Update_Checker
 	 */
 	private Update_Checker $update_checker;
 
 	/**
+	 * Logger.
+	 *
+	 * @since 1.0.0
+	 * @var Logger
+	 */
+	private Logger $logger;
+
+	/**
 	 * Constructor.
 	 *
+	 * @since 1.0.0
 	 * @param Update_Checker $update_checker Update checker.
+	 * @param Logger         $logger         Logger.
 	 */
-	public function __construct( Update_Checker $update_checker ) {
+	public function __construct( Update_Checker $update_checker, Logger $logger ) {
 		$this->update_checker = $update_checker;
+		$this->logger         = $logger;
 	}
 
 	/**
 	 * Register cron hooks and custom schedules.
 	 *
+	 * @since 1.0.0
 	 * @return void
 	 */
 	public function register_hooks(): void {
@@ -49,21 +65,32 @@ class Cron_Manager {
 
 		add_action(
 			'update_option_alynt_pu_check_frequency',
-			function ( $old_value, $new_value ) {
-				if ( $old_value === $new_value ) {
-					return;
-				}
-
-				$this->update_frequency( (string) $new_value );
-			},
+			array( $this, 'handle_frequency_option_update' ),
 			10,
 			2
 		);
 	}
 
 	/**
+	 * Handle updates to the check frequency option.
+	 *
+	 * @since 1.0.0
+	 * @param mixed $old_value Previous option value.
+	 * @param mixed $new_value New option value.
+	 * @return void
+	 */
+	public function handle_frequency_option_update( $old_value, $new_value ): void {
+		if ( $old_value === $new_value ) {
+			return;
+		}
+
+		$this->update_frequency( (string) $new_value );
+	}
+
+	/**
 	 * Add custom cron schedules.
 	 *
+	 * @since 1.0.0
 	 * @param array $schedules Existing schedules.
 	 * @return array Modified schedules.
 	 */
@@ -84,6 +111,7 @@ class Cron_Manager {
 	/**
 	 * Schedule the update check event.
 	 *
+	 * @since 1.0.0
 	 * @return void
 	 */
 	public function schedule_checks(): void {
@@ -102,6 +130,7 @@ class Cron_Manager {
 	/**
 	 * Unschedule the update check event.
 	 *
+	 * @since 1.0.0
 	 * @return void
 	 */
 	public function unschedule_checks(): void {
@@ -111,6 +140,7 @@ class Cron_Manager {
 	/**
 	 * Update the check frequency.
 	 *
+	 * @since 1.0.0
 	 * @param string $new_frequency New frequency value.
 	 * @return void
 	 */
@@ -128,16 +158,35 @@ class Cron_Manager {
 	/**
 	 * Callback for scheduled check event.
 	 *
+	 * @since 1.0.0
 	 * @return void
 	 */
 	public function run_scheduled_check(): void {
-		$this->update_checker->check_all_updates( false );
+		$results = $this->update_checker->check_all_updates( false );
 		update_option( 'alynt_pu_last_check', time() );
+
+		$error_count = 0;
+		foreach ( $results as $plugin_file => $result ) {
+			if ( ! empty( $result['error'] ) ) {
+				++$error_count;
+			}
+		}
+
+		if ( $error_count > 0 ) {
+			$this->logger->warning(
+				'Scheduled check completed with errors.',
+				array(
+					'total'  => count( $results ),
+					'errors' => $error_count,
+				)
+			);
+		}
 	}
 
 	/**
 	 * Check if event is currently scheduled.
 	 *
+	 * @since 1.0.0
 	 * @return bool|int False if not scheduled, or timestamp of next run.
 	 */
 	public function is_scheduled() {

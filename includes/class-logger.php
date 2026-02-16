@@ -13,11 +13,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Class Logger.
+ *
+ * @since 1.0.0
  */
 class Logger {
 	/**
 	 * Log a debug message.
 	 *
+	 * @since 1.0.0
 	 * @param string $message Log message.
 	 * @param array  $context Optional context.
 	 * @return void
@@ -33,6 +36,7 @@ class Logger {
 	/**
 	 * Log an info message.
 	 *
+	 * @since 1.0.0
 	 * @param string $message Log message.
 	 * @param array  $context Optional context.
 	 * @return void
@@ -44,6 +48,7 @@ class Logger {
 	/**
 	 * Log a warning message.
 	 *
+	 * @since 1.0.0
 	 * @param string $message Log message.
 	 * @param array  $context Optional context.
 	 * @return void
@@ -55,6 +60,7 @@ class Logger {
 	/**
 	 * Log an error message.
 	 *
+	 * @since 1.0.0
 	 * @param string $message Log message.
 	 * @param array  $context Optional context.
 	 * @return void
@@ -66,6 +72,7 @@ class Logger {
 	/**
 	 * Format and write the log entry.
 	 *
+	 * @since 1.0.0
 	 * @param string $level   Log level.
 	 * @param string $message Log message.
 	 * @param array  $context Optional context.

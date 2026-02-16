@@ -73,9 +73,10 @@
 
 #### `alynt_pu_updating_{plugin_slug}`
 
-**Structure:** Unix timestamp (lock set time)
+No longer used in the current architecture.
 
-**Duration:** 300 seconds (5 minutes)
+Update installation is handled by WordPress core upgrader flow; this plugin
+does not create or manage a custom per-plugin lock transient.
 
 ---
 
@@ -280,30 +281,12 @@ $transient->response[$plugin_file] = (object) [
 
 ---
 
-### 5.9 class-plugin-installer.php
+### 5.9 class-plugin-installer.php (Legacy - Removed)
 
-```php
-class Plugin_Installer {
-    public function __construct(Logger $logger)
-    
-    public function install_update(string $plugin_file, string $download_url): true|WP_Error
-    
-    private function acquire_lock(string $plugin_slug): bool
-    private function release_lock(string $plugin_slug): void
-    private function init_filesystem(): bool|WP_Error
-    private function find_extracted_folder(string $temp_dir): string|WP_Error
-    private function validate_plugin_structure(string $folder, string $plugin_file): bool|WP_Error
-    private function cleanup(?string $temp_file, ?string $temp_dir): void
-}
-```
+Removed from the current architecture.
 
-**WP_Error codes:**
-- `'update_in_progress'`
-- `'download_failed'`
-- `'extraction_failed'`
-- `'invalid_plugin_structure'`
-- `'move_failed'`
-- `'filesystem_error'`
+Plugin update installation uses the standard WordPress upgrader flow after
+`Update_Checker` injects update metadata into the plugin update transient.
 
 ---
 

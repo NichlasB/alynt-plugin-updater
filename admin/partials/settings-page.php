@@ -24,6 +24,7 @@ if ( $rate_limit_reset ) {
 
 <div class="wrap alynt-pu-settings">
 	<h1><?php echo esc_html__( 'Alynt Plugin Updater', 'alynt-plugin-updater' ); ?></h1>
+	<?php settings_errors(); ?>
 
 	<form method="post" action="options.php">
 		<?php settings_fields( 'alynt_pu_settings' ); ?>
@@ -48,8 +49,8 @@ if ( $rate_limit_reset ) {
 					<label for="alynt_pu_cache_duration"><?php echo esc_html__( 'Cache Duration (seconds)', 'alynt-plugin-updater' ); ?></label>
 				</th>
 				<td>
-					<input type="number" class="small-text" id="alynt_pu_cache_duration" name="alynt_pu_cache_duration" value="<?php echo esc_attr( $cache_duration ); ?>" min="300" max="86400" />
-					<p class="description"><?php echo esc_html__( 'How long to cache GitHub API responses.', 'alynt-plugin-updater' ); ?></p>
+					<input type="number" class="small-text" id="alynt_pu_cache_duration" name="alynt_pu_cache_duration" value="<?php echo esc_attr( $cache_duration ); ?>" min="<?php echo esc_attr( $cache_duration_min ); ?>" max="<?php echo esc_attr( $cache_duration_max ); ?>" aria-describedby="alynt-pu-cache-duration-desc" />
+					<p class="description" id="alynt-pu-cache-duration-desc"><?php echo esc_html__( 'How long to cache GitHub API responses.', 'alynt-plugin-updater' ); ?></p>
 				</td>
 			</tr>
 		</table>
@@ -62,19 +63,23 @@ if ( $rate_limit_reset ) {
 	<h2><?php echo esc_html__( 'Webhook Configuration', 'alynt-plugin-updater' ); ?></h2>
 	<table class="form-table" role="presentation">
 		<tr>
-			<th scope="row"><?php echo esc_html__( 'Webhook URL', 'alynt-plugin-updater' ); ?></th>
+			<th scope="row">
+				<label for="alynt_pu_webhook_url"><?php echo esc_html__( 'Webhook URL', 'alynt-plugin-updater' ); ?></label>
+			</th>
 			<td>
 				<input type="text" readonly class="regular-text" id="alynt_pu_webhook_url" value="<?php echo esc_attr( $webhook_url ); ?>" />
-				<button type="button" class="button alynt-pu-copy" data-target="alynt_pu_webhook_url">
+				<button type="button" class="button alynt-pu-copy" data-target="alynt_pu_webhook_url" aria-label="<?php esc_attr_e( 'Copy webhook URL', 'alynt-plugin-updater' ); ?>">
 					<?php echo esc_html__( 'Copy', 'alynt-plugin-updater' ); ?>
 				</button>
 			</td>
 		</tr>
 		<tr>
-			<th scope="row"><?php echo esc_html__( 'Secret Key', 'alynt-plugin-updater' ); ?></th>
+			<th scope="row">
+				<label for="alynt_pu_webhook_secret"><?php echo esc_html__( 'Secret Key', 'alynt-plugin-updater' ); ?></label>
+			</th>
 			<td>
 				<input type="text" readonly class="regular-text" id="alynt_pu_webhook_secret" value="<?php echo esc_attr( $webhook_secret ); ?>" />
-				<button type="button" class="button alynt-pu-copy" data-target="alynt_pu_webhook_secret">
+				<button type="button" class="button alynt-pu-copy" data-target="alynt_pu_webhook_secret" aria-label="<?php esc_attr_e( 'Copy secret key', 'alynt-plugin-updater' ); ?>">
 					<?php echo esc_html__( 'Copy', 'alynt-plugin-updater' ); ?>
 				</button>
 				<button type="button" class="button button-secondary" id="alynt-pu-generate-secret">
@@ -100,18 +105,18 @@ if ( $rate_limit_reset ) {
 	<hr />
 
 	<h2><?php echo esc_html__( 'Status', 'alynt-plugin-updater' ); ?></h2>
-	<table class="widefat striped">
+	<table class="widefat striped" aria-label="<?php esc_attr_e( 'Update check status', 'alynt-plugin-updater' ); ?>">
 		<tbody>
 			<tr>
-				<th><?php echo esc_html__( 'Last Check', 'alynt-plugin-updater' ); ?></th>
+				<th scope="row"><?php echo esc_html__( 'Last Check', 'alynt-plugin-updater' ); ?></th>
 				<td><?php echo esc_html( $last_check_display ); ?></td>
 			</tr>
 			<tr>
-				<th><?php echo esc_html__( 'Next Scheduled Check', 'alynt-plugin-updater' ); ?></th>
+				<th scope="row"><?php echo esc_html__( 'Next Scheduled Check', 'alynt-plugin-updater' ); ?></th>
 				<td><?php echo esc_html( $next_check_display ); ?></td>
 			</tr>
 			<tr>
-				<th><?php echo esc_html__( 'Rate Limit Status', 'alynt-plugin-updater' ); ?></th>
+				<th scope="row"><?php echo esc_html__( 'Rate Limit Status', 'alynt-plugin-updater' ); ?></th>
 				<td><?php echo esc_html( $rate_limit_display ); ?></td>
 			</tr>
 		</tbody>
@@ -121,18 +126,19 @@ if ( $rate_limit_reset ) {
 		<button type="button" class="button button-primary" id="alynt-pu-check-all" data-nonce="<?php echo esc_attr( $check_all_nonce ); ?>">
 			<?php echo esc_html__( 'Check All for Updates Now', 'alynt-plugin-updater' ); ?>
 		</button>
-		<span id="alynt-pu-check-all-status" class="alynt-pu-status-message"></span>
+		<span id="alynt-pu-check-all-status" class="alynt-pu-status-message" aria-live="polite" aria-atomic="true"></span>
 	</div>
+	<div id="alynt-pu-screen-reader-feedback" class="screen-reader-text" aria-live="polite" aria-atomic="true"></div>
 
 	<h2><?php echo esc_html__( 'Registered Plugins', 'alynt-plugin-updater' ); ?></h2>
-	<table class="widefat striped alynt-pu-plugins-table">
+	<table class="widefat striped alynt-pu-plugins-table" aria-label="<?php esc_attr_e( 'Registered plugins', 'alynt-plugin-updater' ); ?>">
 		<thead>
 			<tr>
-				<th><?php echo esc_html__( 'Plugin', 'alynt-plugin-updater' ); ?></th>
-				<th><?php echo esc_html__( 'Current Version', 'alynt-plugin-updater' ); ?></th>
-				<th><?php echo esc_html__( 'GitHub Repo', 'alynt-plugin-updater' ); ?></th>
-				<th><?php echo esc_html__( 'Last Checked', 'alynt-plugin-updater' ); ?></th>
-				<th><?php echo esc_html__( 'Status', 'alynt-plugin-updater' ); ?></th>
+				<th scope="col"><?php echo esc_html__( 'Plugin', 'alynt-plugin-updater' ); ?></th>
+				<th scope="col"><?php echo esc_html__( 'Current Version', 'alynt-plugin-updater' ); ?></th>
+				<th scope="col"><?php echo esc_html__( 'GitHub Repo', 'alynt-plugin-updater' ); ?></th>
+				<th scope="col"><?php echo esc_html__( 'Last Checked', 'alynt-plugin-updater' ); ?></th>
+				<th scope="col"><?php echo esc_html__( 'Status', 'alynt-plugin-updater' ); ?></th>
 			</tr>
 		</thead>
 		<tbody>
@@ -163,6 +169,7 @@ if ( $rate_limit_reset ) {
 						<td>
 							<a href="<?php echo esc_url( $plugin_data['plugin_uri'] ); ?>" target="_blank" rel="noopener noreferrer">
 								<?php echo esc_html( $plugin_data['owner'] . '/' . $plugin_data['repo'] ); ?>
+								<span class="screen-reader-text"><?php esc_html_e( '(opens in a new tab)', 'alynt-plugin-updater' ); ?></span>
 							</a>
 						</td>
 						<td><?php echo esc_html( $last_check_display ); ?></td>

@@ -21,10 +21,10 @@
 ```
 Plugin (main orchestrator)
 ├── Loader (autoloader) — standalone
+├── Service_Factory — standalone
 ├── Plugin_Scanner — no dependencies
 ├── GitHub_API — depends on: Version_Util, Logger
 ├── Update_Checker — depends on: Plugin_Scanner, GitHub_API, Version_Util
-├── Plugin_Installer — depends on: Logger
 ├── Cron_Manager — depends on: Update_Checker
 ├── Webhook_Handler — depends on: Plugin_Scanner, GitHub_API, Update_Checker, Logger
 ├── Admin_Menu — depends on: Settings
@@ -41,9 +41,8 @@ All initialization on `plugins_loaded` hook at priority `10`.
 1. Autoloader registers (immediate, before `plugins_loaded`)
 2. `Plugin::init()` on `plugins_loaded` priority `10`
 3. Inside `Plugin::init()`:
-   - Instantiate Logger → Plugin_Scanner → Version_Util
-   - Instantiate GitHub_API with dependencies
-   - Instantiate Update_Checker, Plugin_Installer, Cron_Manager, Webhook_Handler
+   - Build runtime services via `Service_Factory`
+   - Instantiate Cron_Manager with Update_Checker
    - If `is_admin()`: Instantiate Settings, Admin_Menu, Plugins_List
 
 ### 1.3 Hook Timing Reference
@@ -70,8 +69,8 @@ All initialization on `plugins_loaded` hook at priority `10`.
 ```
 Alynt\PluginUpdater\
 ├── Plugin, Loader, Activator, Deactivator
-├── Logger, Version_Util, Plugin_Scanner
-├── GitHub_API, Update_Checker, Plugin_Installer
+├── Logger, Version_Util, Plugin_Scanner, Config
+├── GitHub_API, Update_Checker, Service_Factory
 ├── Cron_Manager, Webhook_Handler
 └── Admin\
     ├── Admin_Menu, Settings, Plugins_List
@@ -179,9 +178,9 @@ Alynt\PluginUpdater\
 
 ### 3.9 Concurrent Updates
 
-- Check lock transient: `alynt_pu_updating_{slug}` (5 min TTL)
-- If locked → return `WP_Error('update_in_progress')`
-- Set lock at start, delete at end (success or failure)
+- Rely on WordPress core upgrader locking/concurrency behavior
+- Plugin does not maintain custom `alynt_pu_updating_*` lock transients
+- Source-directory normalization is still handled by `Update_Checker::fix_source_directory`
 
 ### 3.10 Plugin Deactivated During Update
 

@@ -17,11 +17,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Class Webhook_Handler.
+ *
+ * @since 1.0.0
  */
 class Webhook_Handler {
 	/**
 	 * REST namespace.
 	 *
+	 * @since 1.0.0
 	 * @var string
 	 */
 	private const REST_NAMESPACE = 'alynt-pu/v1';
@@ -29,6 +32,7 @@ class Webhook_Handler {
 	/**
 	 * REST route.
 	 *
+	 * @since 1.0.0
 	 * @var string
 	 */
 	private const REST_ROUTE = '/webhook';
@@ -36,6 +40,7 @@ class Webhook_Handler {
 	/**
 	 * Plugin scanner.
 	 *
+	 * @since 1.0.0
 	 * @var Plugin_Scanner
 	 */
 	private Plugin_Scanner $scanner;
@@ -43,6 +48,7 @@ class Webhook_Handler {
 	/**
 	 * GitHub API.
 	 *
+	 * @since 1.0.0
 	 * @var GitHub_API
 	 */
 	private GitHub_API $github_api;
@@ -50,6 +56,7 @@ class Webhook_Handler {
 	/**
 	 * Update checker.
 	 *
+	 * @since 1.0.0
 	 * @var Update_Checker
 	 */
 	private Update_Checker $update_checker;
@@ -57,6 +64,7 @@ class Webhook_Handler {
 	/**
 	 * Logger.
 	 *
+	 * @since 1.0.0
 	 * @var Logger
 	 */
 	private Logger $logger;
@@ -64,6 +72,7 @@ class Webhook_Handler {
 	/**
 	 * Constructor.
 	 *
+	 * @since 1.0.0
 	 * @param Plugin_Scanner $scanner        Plugin scanner.
 	 * @param GitHub_API     $github_api     GitHub API client.
 	 * @param Update_Checker $update_checker Update checker.
@@ -79,6 +88,7 @@ class Webhook_Handler {
 	/**
 	 * Register REST API route.
 	 *
+	 * @since 1.0.0
 	 * @return void
 	 */
 	public function register_rest_route(): void {
@@ -96,6 +106,7 @@ class Webhook_Handler {
 	/**
 	 * Handle incoming webhook request.
 	 *
+	 * @since 1.0.0
 	 * @param WP_REST_Request $request Request object.
 	 * @return WP_REST_Response Response object.
 	 */
@@ -134,6 +145,7 @@ class Webhook_Handler {
 	/**
 	 * Verify webhook signature.
 	 *
+	 * @since 1.0.0
 	 * @param string $payload   Raw request body.
 	 * @param string $signature Header signature.
 	 * @return bool|WP_REST_Response True if valid, or error response.
@@ -163,6 +175,7 @@ class Webhook_Handler {
 	/**
 	 * Process valid webhook payload.
 	 *
+	 * @since 1.0.0
 	 * @param array $payload Payload data.
 	 * @return WP_REST_Response Response object.
 	 */
@@ -202,6 +215,7 @@ class Webhook_Handler {
 	/**
 	 * Get the full webhook URL.
 	 *
+	 * @since 1.0.0
 	 * @return string Webhook URL.
 	 */
 	public function get_webhook_url(): string {
@@ -211,6 +225,7 @@ class Webhook_Handler {
 	/**
 	 * Generate a new webhook secret.
 	 *
+	 * @since 1.0.0
 	 * @return string Secret key.
 	 */
 	public static function generate_secret(): string {

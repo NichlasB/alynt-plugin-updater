@@ -13,11 +13,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Class Admin_Menu.
+ *
+ * @since 1.0.0
  */
 class Admin_Menu {
 	/**
 	 * Settings handler.
 	 *
+	 * @since 1.0.0
 	 * @var Settings
 	 */
 	private Settings $settings;
@@ -25,6 +28,7 @@ class Admin_Menu {
 	/**
 	 * Constructor.
 	 *
+	 * @since 1.0.0
 	 * @param Settings $settings Settings handler.
 	 */
 	public function __construct( Settings $settings ) {
@@ -34,6 +38,7 @@ class Admin_Menu {
 	/**
 	 * Register admin hooks.
 	 *
+	 * @since 1.0.0
 	 * @return void
 	 */
 	public function register_hooks(): void {
@@ -43,6 +48,7 @@ class Admin_Menu {
 	/**
 	 * Add settings page under Settings menu.
 	 *
+	 * @since 1.0.0
 	 * @return void
 	 */
 	public function add_menu_page(): void {

@@ -3,6 +3,7 @@
  * Main plugin orchestrator.
  *
  * @package AlyntPluginUpdater
+ * @since   1.0.0
  */
 
 namespace Alynt\PluginUpdater;
@@ -17,118 +18,120 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Class Plugin.
+ *
+ * @since 1.0.0
  */
 class Plugin {
 	/**
-	 * Logger instance.
-	 *
-	 * @var Logger
-	 */
-	private Logger $logger;
-
-	/**
 	 * Plugin scanner.
 	 *
-	 * @var Plugin_Scanner
+	 * @since 1.0.0
+	 * @var   Plugin_Scanner
 	 */
 	private Plugin_Scanner $scanner;
 
 	/**
-	 * Version utility.
-	 *
-	 * @var Version_Util
-	 */
-	private Version_Util $version_util;
-
-	/**
-	 * GitHub API client.
-	 *
-	 * @var GitHub_API
-	 */
-	private GitHub_API $github_api;
-
-	/**
 	 * Update checker.
 	 *
-	 * @var Update_Checker
+	 * @since 1.0.0
+	 * @var   Update_Checker
 	 */
 	private Update_Checker $update_checker;
 
 	/**
-	 * Plugin installer.
-	 *
-	 * @var Plugin_Installer
-	 */
-	private Plugin_Installer $installer;
-
-	/**
 	 * Cron manager.
 	 *
-	 * @var Cron_Manager
+	 * @since 1.0.0
+	 * @var   Cron_Manager
 	 */
 	private Cron_Manager $cron_manager;
 
 	/**
 	 * Webhook handler.
 	 *
-	 * @var Webhook_Handler
+	 * @since 1.0.0
+	 * @var   Webhook_Handler
 	 */
 	private Webhook_Handler $webhook_handler;
 
 	/**
 	 * Admin menu.
 	 *
-	 * @var Admin_Menu|null
+	 * @since 1.0.0
+	 * @var   Admin_Menu|null
 	 */
 	private ?Admin_Menu $admin_menu = null;
 
 	/**
 	 * Settings handler.
 	 *
-	 * @var Settings|null
+	 * @since 1.0.0
+	 * @var   Settings|null
 	 */
 	private ?Settings $settings = null;
 
 	/**
 	 * Plugins list handler.
 	 *
-	 * @var Plugins_List|null
+	 * @since 1.0.0
+	 * @var   Plugins_List|null
 	 */
 	private ?Plugins_List $plugins_list = null;
 
 	/**
 	 * Initialize the plugin.
 	 *
+	 * @since  1.0.0
 	 * @return void
 	 */
 	public static function init(): void {
+		self::load_textdomain();
+
 		$instance = new self();
 		$instance->register_hooks();
 	}
 
 	/**
+	 * Load plugin translation files.
+	 *
+	 * @since  1.0.0
+	 * @return void
+	 */
+	private static function load_textdomain(): void {
+		load_plugin_textdomain(
+			'alynt-plugin-updater',
+			false,
+			dirname( ALYNT_PU_PLUGIN_BASENAME ) . '/languages/'
+		);
+	}
+
+	/**
 	 * Plugin constructor.
+	 *
+	 * @since 1.0.0
 	 */
 	private function __construct() {
-		$this->logger         = new Logger();
-		$this->scanner        = new Plugin_Scanner();
-		$this->version_util   = new Version_Util();
-		$this->github_api     = new GitHub_API( $this->version_util, $this->logger );
-		$this->update_checker = new Update_Checker( $this->scanner, $this->github_api, $this->version_util );
-		$this->installer      = new Plugin_Installer( $this->logger );
-		$this->cron_manager   = new Cron_Manager( $this->update_checker );
-		$this->webhook_handler = new Webhook_Handler( $this->scanner, $this->github_api, $this->update_checker, $this->logger );
+		$services = Service_Factory::create_runtime_services();
+
+		$this->scanner         = $services['scanner'];
+		$this->update_checker  = $services['update_checker'];
+		$this->webhook_handler = $services['webhook_handler'];
+		$this->cron_manager    = new Cron_Manager( $this->update_checker, $services['logger'] );
+
+		/** @var GitHub_API $github_api */
+		$github_api = $services['github_api'];
 
 		if ( is_admin() ) {
-			$this->settings     = new Settings();
+			$this->settings     = new Settings( $this->scanner, $this->update_checker, $this->webhook_handler );
 			$this->admin_menu   = new Admin_Menu( $this->settings );
-			$this->plugins_list = new Plugins_List( $this->scanner, $this->github_api, $this->update_checker );
+			$this->plugins_list = new Plugins_List( $this->scanner, $github_api, $this->update_checker );
 		}
 	}
 
 	/**
 	 * Register all hooks.
 	 *
+	 * @since  1.0.0
 	 * @return void
 	 */
 	private function register_hooks(): void {

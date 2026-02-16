@@ -13,11 +13,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Class Version_Util.
+ *
+ * @since 1.0.0
  */
 class Version_Util {
 	/**
 	 * Normalize a version string by stripping a leading "v".
 	 *
+	 * @since 1.0.0
 	 * @param string $version Version string.
 	 * @return string Normalized version.
 	 */
@@ -28,6 +31,7 @@ class Version_Util {
 	/**
 	 * Compare two versions after normalization.
 	 *
+	 * @since 1.0.0
 	 * @param string $version1 First version.
 	 * @param string $version2 Second version.
 	 * @param string $operator Comparison operator.
@@ -43,6 +47,7 @@ class Version_Util {
 	/**
 	 * Check if a remote version is newer.
 	 *
+	 * @since 1.0.0
 	 * @param string $current_version Current version.
 	 * @param string $remote_version  Remote version.
 	 * @return bool True if update is available.

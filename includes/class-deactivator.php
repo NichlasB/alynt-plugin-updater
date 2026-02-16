@@ -13,11 +13,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Class Deactivator.
+ *
+ * @since 1.0.0
  */
 class Deactivator {
 	/**
 	 * Run on plugin deactivation.
 	 *
+	 * @since 1.0.0
 	 * @return void
 	 */
 	public static function deactivate(): void {

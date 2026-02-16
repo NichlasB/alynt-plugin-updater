@@ -13,11 +13,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Class Loader.
+ *
+ * @since 1.0.0
  */
 class Loader {
 	/**
 	 * Register the autoloader.
 	 *
+	 * @since 1.0.0
 	 * @return void
 	 */
 	public static function register(): void {
@@ -27,6 +30,7 @@ class Loader {
 	/**
 	 * Autoload callback.
 	 *
+	 * @since 1.0.0
 	 * @param string $class Fully-qualified class name.
 	 * @return void
 	 */

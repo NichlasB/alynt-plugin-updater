@@ -1,8 +1,10 @@
 <?php
 /**
- * GitHub API client.
+ * GitHub API client — orchestrates HTTP requests, caching, and version
+ * normalisation to resolve the latest release for a GitHub repository.
  *
  * @package AlyntPluginUpdater
+ * @since   1.0.0
  */
 
 namespace Alynt\PluginUpdater;
@@ -15,43 +17,55 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Class GitHub_API.
+ *
+ * @since 1.0.0
  */
 class GitHub_API {
 	/**
-	 * API base URL.
+	 * HTTP client.
 	 *
-	 * @var string
+	 * @since 1.0.0
+	 * @var   GitHub_Http_Client
 	 */
-	private const API_BASE = 'https://api.github.com';
+	private GitHub_Http_Client $http_client;
 
 	/**
-	 * Cache prefix.
+	 * Release cache.
 	 *
-	 * @var string
+	 * @since 1.0.0
+	 * @var   GitHub_Release_Cache
 	 */
-	private const CACHE_PREFIX = 'alynt_pu_release_';
+	private GitHub_Release_Cache $cache;
 
 	/**
 	 * Version utility.
 	 *
-	 * @var Version_Util
+	 * @since 1.0.0
+	 * @var   Version_Util
 	 */
 	private Version_Util $version_util;
 
 	/**
 	 * Logger.
 	 *
-	 * @var Logger
+	 * @since 1.0.0
+	 * @var   Logger
 	 */
 	private Logger $logger;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param Version_Util $version_util Version utility.
-	 * @param Logger       $logger       Logger.
+	 * @since 1.0.0
+	 *
+	 * @param GitHub_Http_Client   $http_client  HTTP client.
+	 * @param GitHub_Release_Cache $cache        Release cache.
+	 * @param Version_Util         $version_util Version utility.
+	 * @param Logger               $logger       Logger.
 	 */
-	public function __construct( Version_Util $version_util, Logger $logger ) {
+	public function __construct( GitHub_Http_Client $http_client, GitHub_Release_Cache $cache, Version_Util $version_util, Logger $logger ) {
+		$this->http_client  = $http_client;
+		$this->cache        = $cache;
 		$this->version_util = $version_util;
 		$this->logger       = $logger;
 	}
@@ -59,81 +73,43 @@ class GitHub_API {
 	/**
 	 * Get the latest release for a repository.
 	 *
+	 * @since 1.0.0
+	 *
 	 * @param string $owner       Repository owner.
 	 * @param string $repo        Repository name.
 	 * @param bool   $force_fresh Skip cache and fetch fresh data.
+	 * @param bool   $cache_only  Return cached data only; skip API calls on cache miss.
 	 * @return array|WP_Error Release data or WP_Error.
 	 */
-	public function get_latest_release( string $owner, string $repo, bool $force_fresh = false ) {
-		$cache_key = $this->get_cache_key( $owner, $repo );
-		$cached    = get_transient( $cache_key );
+	public function get_latest_release( string $owner, string $repo, bool $force_fresh = false, bool $cache_only = false ) {
+		$cached = $this->cache->get( $owner, $repo );
 
-		if ( false !== $cached && ! $this->is_valid_cache( $cached ) ) {
-			delete_transient( $cache_key );
-			$this->logger->debug( 'Invalid cache structure, refreshing.', array( 'cache_key' => $cache_key ) );
-			$cached = false;
+		$cached_result = $this->get_cached_release_result( $cached, $force_fresh, $owner, $repo );
+		if ( null !== $cached_result ) {
+			return $cached_result;
 		}
 
-		if ( ! $force_fresh && $this->is_valid_cache( $cached ) ) {
-			if ( isset( $cached['error'] ) && true === $cached['error'] ) {
-				return new WP_Error(
-					$cached['code'],
-					sprintf( __( 'No releases or tags found for %1$s/%2$s.', 'alynt-plugin-updater' ), $owner, $repo )
-				);
-			}
-
-			return $cached;
+		if ( $cache_only ) {
+			return new WP_Error( 'no_cached_data', __( 'No cached release data available.', 'alynt-plugin-updater' ) );
 		}
 
-		$rate_limit = $this->is_rate_limited();
-		if ( $rate_limit ) {
-			if ( $this->is_valid_cache( $cached ) ) {
-				return $cached;
-			}
-
-			$reset = date_i18n( 'Y-m-d H:i:s', (int) $rate_limit );
-			return new WP_Error( 'rate_limited', sprintf( __( 'GitHub API rate limit exceeded. Resets at %s.', 'alynt-plugin-updater' ), $reset ) );
+		$rate_limit_result = $this->get_rate_limited_result( $cached );
+		if ( null !== $rate_limit_result ) {
+			return $rate_limit_result;
 		}
 
-		$response = $this->request( sprintf( '/repos/%s/%s/releases/latest', rawurlencode( $owner ), rawurlencode( $repo ) ) );
+		$response = $this->http_client->request( sprintf( '/repos/%s/%s/releases/latest', rawurlencode( $owner ), rawurlencode( $repo ) ) );
 		if ( is_wp_error( $response ) ) {
 			return $this->fallback_on_error( $response, $cached, $owner, $repo );
 		}
 
-		if ( 404 === $response['code'] ) {
-			return $this->fetch_from_tags( $owner, $repo, $cached );
-		}
-
-		if ( 403 === $response['code'] ) {
-			return $this->handle_rate_limit_error( $cached );
-		}
-
-		if ( 200 !== $response['code'] ) {
-			return $this->fallback_on_error( new WP_Error( 'api_error', __( 'GitHub API error.', 'alynt-plugin-updater' ) ), $cached, $owner, $repo );
-		}
-
-		$data = json_decode( $response['body'], true );
-		if ( ! is_array( $data ) || empty( $data['tag_name'] ) ) {
-			return $this->fallback_on_error( new WP_Error( 'api_error', __( 'Invalid release data from GitHub.', 'alynt-plugin-updater' ) ), $cached, $owner, $repo );
-		}
-
-		$release = array(
-			'version'      => $this->version_util->normalize( (string) $data['tag_name'] ),
-			'tag'          => (string) $data['tag_name'],
-			'download_url' => $this->get_download_url( $data ),
-			'changelog'    => isset( $data['body'] ) ? (string) $data['body'] : '',
-			'published_at' => isset( $data['published_at'] ) ? (string) $data['published_at'] : '',
-			'cached_at'    => time(),
-			'source'       => 'releases',
-		);
-
-		set_transient( $cache_key, $release, $this->get_cache_duration() );
-
-		return $release;
+		return $this->resolve_latest_release_response( $response, $cached, $owner, $repo );
 	}
 
 	/**
 	 * Get release changelog/body.
+	 *
+	 * @since 1.0.0
 	 *
 	 * @param string $owner Repository owner.
 	 * @param string $repo  Repository name.
@@ -152,118 +128,131 @@ class GitHub_API {
 	/**
 	 * Clear cached release data for a repository.
 	 *
+	 * @since 1.0.0
+	 *
 	 * @param string $owner Repository owner.
 	 * @param string $repo  Repository name.
 	 * @return void
 	 */
 	public function clear_cache( string $owner, string $repo ): void {
-		delete_transient( $this->get_cache_key( $owner, $repo ) );
+		$this->cache->delete( $owner, $repo );
 	}
 
 	/**
 	 * Check if currently rate limited.
 	 *
+	 * @since 1.0.0
+	 *
 	 * @return bool|int False if not limited, or Unix timestamp when limit resets.
 	 */
 	public function is_rate_limited() {
-		$reset = get_transient( 'alynt_pu_rate_limited' );
-		if ( false === $reset ) {
-			return false;
-		}
-
-		$reset = (int) $reset;
-		if ( $reset <= time() ) {
-			delete_transient( 'alynt_pu_rate_limited' );
-			return false;
-		}
-
-		return $reset;
+		return $this->http_client->is_rate_limited();
 	}
 
 	/**
-	 * Build User-Agent header.
+	 * Resolve return value from cache when allowed.
 	 *
-	 * @return string User-Agent string.
+	 * @param mixed  $cached      Cached value.
+	 * @param bool   $force_fresh Skip cache usage.
+	 * @param string $owner       Repository owner.
+	 * @param string $repo        Repository name.
+	 * @return array|WP_Error|null Cached response or null when API call is needed.
 	 */
-	private function get_user_agent(): string {
-		global $wp_version;
+	private function get_cached_release_result( $cached, bool $force_fresh, string $owner, string $repo ) {
+		if ( $force_fresh || ! $this->cache->is_valid( $cached ) ) {
+			return null;
+		}
 
-		$php_version = PHP_VERSION;
-		$wp_version  = $wp_version ? $wp_version : 'unknown';
+		if ( isset( $cached['error'] ) && true === $cached['error'] ) {
+			return new WP_Error(
+				$cached['code'],
+				/* translators: 1: GitHub repository owner, 2: GitHub repository name. */
+				sprintf( __( 'No releases or tags found for %1$s/%2$s.', 'alynt-plugin-updater' ), $owner, $repo )
+			);
+		}
 
-		return sprintf( 'Alynt-Plugin-Updater/%s; WordPress/%s; PHP/%s', ALYNT_PU_VERSION, $wp_version, $php_version );
+		return $cached;
 	}
 
 	/**
-	 * Make HTTP request to GitHub API.
+	 * Resolve return value when currently rate limited.
 	 *
-	 * @param string $endpoint API endpoint path.
-	 * @return array|WP_Error Response array with 'code', 'body', 'headers'.
+	 * @param mixed $cached Cached value.
+	 * @return array|WP_Error|null Cached data, WP_Error, or null when not limited.
 	 */
-	private function request( string $endpoint ) {
-		$url      = self::API_BASE . $endpoint;
-		$response = wp_remote_get(
-			$url,
-			array(
-				'timeout' => 15,
-				'headers' => array(
-					'Accept'     => 'application/vnd.github.v3+json',
-					'User-Agent' => $this->get_user_agent(),
-				),
-			)
-		);
-
-		if ( is_wp_error( $response ) ) {
-			return $response;
+	private function get_rate_limited_result( $cached ) {
+		$rate_limit = $this->http_client->is_rate_limited();
+		if ( ! $rate_limit ) {
+			return null;
 		}
 
-		$code    = wp_remote_retrieve_response_code( $response );
-		$body    = wp_remote_retrieve_body( $response );
-		$headers = wp_remote_retrieve_headers( $response );
+		if ( $this->cache->is_valid( $cached ) ) {
+			return $cached;
+		}
 
-		$headers = $this->normalize_headers( $headers );
-		$this->handle_rate_limit_headers( $headers );
+		$reset = date_i18n( 'Y-m-d H:i:s', (int) $rate_limit );
+		/* translators: %s: date and time when GitHub API rate limit resets. */
+		return new WP_Error( 'rate_limited', sprintf( __( 'GitHub API rate limit exceeded. Resets at %s.', 'alynt-plugin-updater' ), $reset ) );
+	}
 
+	/**
+	 * Parse and resolve latest release API response.
+	 *
+	 * @param array  $response Latest release response payload.
+	 * @param mixed  $cached   Cached release value.
+	 * @param string $owner    Repository owner.
+	 * @param string $repo     Repository name.
+	 * @return array|WP_Error
+	 */
+	private function resolve_latest_release_response( array $response, $cached, string $owner, string $repo ) {
+		if ( GitHub_Http_Client::HTTP_STATUS_NOT_FOUND === $response['code'] ) {
+			return $this->fetch_from_tags( $owner, $repo, $cached );
+		}
+
+		if ( GitHub_Http_Client::HTTP_STATUS_FORBIDDEN === $response['code'] ) {
+			return $this->handle_rate_limit_error( $cached );
+		}
+
+		if ( GitHub_Http_Client::HTTP_STATUS_OK !== $response['code'] ) {
+			return $this->fallback_on_error( new WP_Error( 'api_error', __( 'GitHub API error.', 'alynt-plugin-updater' ) ), $cached, $owner, $repo );
+		}
+
+		$data = json_decode( $response['body'], true );
+		if ( ! is_array( $data ) || empty( $data['tag_name'] ) ) {
+			return $this->fallback_on_error( new WP_Error( 'api_error', __( 'Invalid release data from GitHub.', 'alynt-plugin-updater' ) ), $cached, $owner, $repo );
+		}
+
+		$release = $this->build_release_from_data( $data );
+		$this->cache->set( $owner, $repo, $release );
+
+		return $release;
+	}
+
+	/**
+	 * Build normalised release data from a GitHub release payload.
+	 *
+	 * @param array $data Decoded release response.
+	 * @return array<string, mixed>
+	 */
+	private function build_release_from_data( array $data ): array {
 		return array(
-			'code'    => $code,
-			'body'    => $body,
-			'headers' => $headers,
+			'version'      => $this->version_util->normalize( (string) $data['tag_name'] ),
+			'tag'          => (string) $data['tag_name'],
+			'download_url' => $this->get_download_url( $data ),
+			'changelog'    => isset( $data['body'] ) ? (string) $data['body'] : '',
+			'published_at' => isset( $data['published_at'] ) ? (string) $data['published_at'] : '',
+			'cached_at'    => time(),
+			'source'       => 'releases',
 		);
 	}
 
 	/**
-	 * Handle rate limit headers from response.
+	 * Determine the best download URL from release data.
 	 *
-	 * @param array $headers Response headers.
-	 * @return void
-	 */
-	private function handle_rate_limit_headers( array $headers ): void {
-		$remaining = isset( $headers['x-ratelimit-remaining'] ) ? (int) $headers['x-ratelimit-remaining'] : null;
-		$reset     = isset( $headers['x-ratelimit-reset'] ) ? (int) $headers['x-ratelimit-reset'] : null;
-
-		if ( 0 === $remaining && $reset && $reset > time() ) {
-			$ttl = $reset - time();
-			set_transient( 'alynt_pu_rate_limited', $reset, $ttl );
-			$this->logger->warning( 'GitHub API rate limit exceeded.', array( 'reset' => $reset ) );
-		}
-	}
-
-	/**
-	 * Get cache key for a repository.
-	 *
-	 * @param string $owner Repository owner.
-	 * @param string $repo  Repository name.
-	 * @return string Transient key.
-	 */
-	private function get_cache_key( string $owner, string $repo ): string {
-		return self::CACHE_PREFIX . sanitize_key( $owner . '_' . $repo );
-	}
-
-	/**
-	 * Determine download URL from release data.
+	 * Prefers a .zip asset attachment; falls back to the zipball URL.
 	 *
 	 * @param array $release Release data from API.
-	 * @return string Download URL.
+	 * @return string Download URL or empty string.
 	 */
 	private function get_download_url( array $release ): string {
 		if ( ! empty( $release['assets'] ) && is_array( $release['assets'] ) ) {
@@ -287,42 +276,7 @@ class GitHub_API {
 	}
 
 	/**
-	 * Check if cached release data is valid.
-	 *
-	 * @param mixed $cached Cached value.
-	 * @return bool True if valid.
-	 */
-	private function is_valid_cache( $cached ): bool {
-		if ( ! is_array( $cached ) ) {
-			return false;
-		}
-
-		if ( isset( $cached['error'] ) && true === $cached['error'] ) {
-			return true;
-		}
-
-		return isset( $cached['version'] );
-	}
-
-	/**
-	 * Get cache duration in seconds.
-	 *
-	 * @return int Cache duration.
-	 */
-	private function get_cache_duration(): int {
-		$duration = (int) get_option( 'alynt_pu_cache_duration', 3600 );
-		if ( $duration < 300 ) {
-			return 300;
-		}
-		if ( $duration > 86400 ) {
-			return 86400;
-		}
-
-		return $duration;
-	}
-
-	/**
-	 * Handle API errors and fallback to cached data if possible.
+	 * Handle API errors and fall back to cached data if possible.
 	 *
 	 * @param WP_Error $error  Error to return if no cache.
 	 * @param mixed    $cached Cached data.
@@ -331,7 +285,7 @@ class GitHub_API {
 	 * @return array|WP_Error
 	 */
 	private function fallback_on_error( WP_Error $error, $cached, string $owner, string $repo ) {
-		if ( $this->is_valid_cache( $cached ) ) {
+		if ( $this->cache->is_valid( $cached ) ) {
 			$this->logger->warning(
 				'GitHub API error, using cached data.',
 				array(
@@ -347,7 +301,7 @@ class GitHub_API {
 	}
 
 	/**
-	 * Fetch release data from tags API.
+	 * Fetch release data from the tags API as a fallback.
 	 *
 	 * @param string $owner  Repository owner.
 	 * @param string $repo   Repository name.
@@ -355,12 +309,12 @@ class GitHub_API {
 	 * @return array|WP_Error
 	 */
 	private function fetch_from_tags( string $owner, string $repo, $cached ) {
-		$response = $this->request( sprintf( '/repos/%s/%s/tags', rawurlencode( $owner ), rawurlencode( $repo ) ) );
+		$response = $this->http_client->request( sprintf( '/repos/%s/%s/tags?per_page=1', rawurlencode( $owner ), rawurlencode( $repo ) ) );
 		if ( is_wp_error( $response ) ) {
 			return $this->fallback_on_error( $response, $cached, $owner, $repo );
 		}
 
-		if ( 403 === $response['code'] ) {
+		if ( GitHub_Http_Client::HTTP_STATUS_FORBIDDEN === $response['code'] ) {
 			return $this->handle_rate_limit_error( $cached );
 		}
 
@@ -374,15 +328,16 @@ class GitHub_API {
 				'cached_at' => time(),
 			);
 
-			set_transient( $this->get_cache_key( $owner, $repo ), $negative, HOUR_IN_SECONDS );
+			$this->cache->set_with_ttl( $owner, $repo, $negative, HOUR_IN_SECONDS );
 
 			return new WP_Error(
 				'no_releases',
+				/* translators: 1: GitHub repository owner, 2: GitHub repository name. */
 				sprintf( __( 'No releases or tags found for %1$s/%2$s.', 'alynt-plugin-updater' ), $owner, $repo )
 			);
 		}
 
-		$tag = (string) $data[0]['name'];
+		$tag     = (string) $data[0]['name'];
 		$release = array(
 			'version'      => $this->version_util->normalize( $tag ),
 			'tag'          => $tag,
@@ -393,7 +348,7 @@ class GitHub_API {
 			'source'       => 'tags',
 		);
 
-		set_transient( $this->get_cache_key( $owner, $repo ), $release, $this->get_cache_duration() );
+		$this->cache->set( $owner, $repo, $release );
 
 		return $release;
 	}
@@ -405,32 +360,15 @@ class GitHub_API {
 	 * @return array|WP_Error
 	 */
 	private function handle_rate_limit_error( $cached ) {
-		$rate_limit = $this->is_rate_limited();
+		$rate_limit = $this->http_client->is_rate_limited();
 
-		if ( $this->is_valid_cache( $cached ) ) {
+		if ( $this->cache->is_valid( $cached ) ) {
 			return $cached;
 		}
 
 		$reset = $rate_limit ? date_i18n( 'Y-m-d H:i:s', (int) $rate_limit ) : __( 'unknown', 'alynt-plugin-updater' );
 
+		/* translators: %s: date and time when GitHub API rate limit resets. */
 		return new WP_Error( 'rate_limited', sprintf( __( 'GitHub API rate limit exceeded. Resets at %s.', 'alynt-plugin-updater' ), $reset ) );
-	}
-
-	/**
-	 * Normalize headers to lower-case array.
-	 *
-	 * @param mixed $headers Headers object or array.
-	 * @return array Normalized headers.
-	 */
-	private function normalize_headers( $headers ): array {
-		if ( is_object( $headers ) && method_exists( $headers, 'getAll' ) ) {
-			$headers = $headers->getAll();
-		}
-
-		if ( ! is_array( $headers ) ) {
-			return array();
-		}
-
-		return array_change_key_case( $headers, CASE_LOWER );
 	}
 }

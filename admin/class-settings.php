@@ -7,11 +7,9 @@
 
 namespace Alynt\PluginUpdater\Admin;
 
-use Alynt\PluginUpdater\GitHub_API;
-use Alynt\PluginUpdater\Logger;
+use Alynt\PluginUpdater\Config;
 use Alynt\PluginUpdater\Plugin_Scanner;
 use Alynt\PluginUpdater\Update_Checker;
-use Alynt\PluginUpdater\Version_Util;
 use Alynt\PluginUpdater\Webhook_Handler;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -20,25 +18,60 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Class Settings.
+ *
+ * @since 1.0.0
  */
 class Settings {
 	/**
 	 * Settings group.
 	 *
+	 * @since 1.0.0
 	 * @var string
 	 */
 	private const OPTION_GROUP = 'alynt_pu_settings';
 
 	/**
-	 * Page slug.
+	 * Plugin scanner.
 	 *
-	 * @var string
+	 * @since 1.0.0
+	 * @var Plugin_Scanner
 	 */
-	private const PAGE_SLUG = 'alynt-plugin-updater';
+	private Plugin_Scanner $scanner;
+
+	/**
+	 * Update checker.
+	 *
+	 * @since 1.0.0
+	 * @var Update_Checker
+	 */
+	private Update_Checker $update_checker;
+
+	/**
+	 * Webhook handler.
+	 *
+	 * @since 1.0.0
+	 * @var Webhook_Handler
+	 */
+	private Webhook_Handler $webhook_handler;
+
+	/**
+	 * Constructor.
+	 *
+	 * @since 1.0.0
+	 * @param Plugin_Scanner  $scanner         Plugin scanner.
+	 * @param Update_Checker  $update_checker  Update checker.
+	 * @param Webhook_Handler $webhook_handler Webhook handler.
+	 */
+	public function __construct( Plugin_Scanner $scanner, Update_Checker $update_checker, Webhook_Handler $webhook_handler ) {
+		$this->scanner         = $scanner;
+		$this->update_checker  = $update_checker;
+		$this->webhook_handler = $webhook_handler;
+	}
 
 	/**
 	 * Register settings with WordPress Settings API.
 	 *
+	 * @since 1.0.0
 	 * @return void
 	 */
 	public function register_settings(): void {
@@ -54,11 +87,11 @@ class Settings {
 
 		register_setting(
 			self::OPTION_GROUP,
-			'alynt_pu_cache_duration',
+			Config::CACHE_DURATION_OPTION,
 			array(
 				'type'              => 'integer',
 				'sanitize_callback' => array( $this, 'sanitize_cache_duration' ),
-				'default'           => 3600,
+				'default'           => Config::CACHE_DURATION_DEFAULT,
 			)
 		);
 
@@ -76,73 +109,37 @@ class Settings {
 	/**
 	 * Render the settings page.
 	 *
+	 * @since 1.0.0
 	 * @return void
 	 */
 	public function render_settings_page(): void {
 		if ( ! current_user_can( 'manage_options' ) ) {
-			return;
+			wp_die(
+				esc_html__( 'You do not have permission to access this page.', 'alynt-plugin-updater' ),
+				esc_html__( 'Permission Denied', 'alynt-plugin-updater' ),
+				array( 'response' => 403 )
+			);
 		}
 
 		$frequency        = (string) get_option( 'alynt_pu_check_frequency', 'twicedaily' );
-		$cache_duration   = (int) get_option( 'alynt_pu_cache_duration', 3600 );
+		$cache_duration   = (int) get_option( Config::CACHE_DURATION_OPTION, Config::CACHE_DURATION_DEFAULT );
 		$webhook_secret   = (string) get_option( 'alynt_pu_webhook_secret', '' );
 		$last_check       = (int) get_option( 'alynt_pu_last_check', 0 );
 		$next_check       = wp_next_scheduled( 'alynt_pu_scheduled_check' );
 		$rate_limit_reset = get_transient( 'alynt_pu_rate_limited' );
 
-		$scanner         = new Plugin_Scanner();
-		$version_util    = new Version_Util();
-		$logger          = new Logger();
-		$github_api      = new GitHub_API( $version_util, $logger );
-		$update_checker  = new Update_Checker( $scanner, $github_api, $version_util );
-		$webhook_handler = new Webhook_Handler( $scanner, $github_api, $update_checker, $logger );
-
-		$plugins = $scanner->get_github_plugins();
-		$results = $update_checker->check_all_updates( false );
+		$plugins = $this->scanner->get_github_plugins();
+		$results = $this->update_checker->get_stored_results();
 
 		$frequency_options     = $this->get_frequency_options();
-		$webhook_url           = $webhook_handler->get_webhook_url();
-		$check_all_nonce     = wp_create_nonce( 'alynt_pu_check_all' );
+		$webhook_url           = $this->webhook_handler->get_webhook_url();
+		$check_all_nonce       = wp_create_nonce( 'alynt_pu_check_all' );
 		$generate_secret_nonce = wp_create_nonce( 'alynt_pu_generate_secret' );
+		$cache_duration_min    = Config::CACHE_DURATION_MIN;
+		$cache_duration_max    = Config::CACHE_DURATION_MAX;
 
-		$script_handle = 'alynt-pu-admin';
-		$script_path   = ALYNT_PU_PLUGIN_DIR . 'assets/dist/admin/index.js';
-		$script_url    = ALYNT_PU_PLUGIN_URL . 'assets/dist/admin/index.js';
-		$style_path    = ALYNT_PU_PLUGIN_DIR . 'assets/dist/admin/style.css';
-		$style_url     = ALYNT_PU_PLUGIN_URL . 'assets/dist/admin/style.css';
-
-		if ( ! file_exists( $script_path ) ) {
-			$script_path = ALYNT_PU_PLUGIN_DIR . 'assets/src/admin/index.js';
-			$script_url  = ALYNT_PU_PLUGIN_URL . 'assets/src/admin/index.js';
-		}
-
-		if ( ! file_exists( $style_path ) ) {
-			$style_path = ALYNT_PU_PLUGIN_DIR . 'assets/src/admin/style.css';
-			$style_url  = ALYNT_PU_PLUGIN_URL . 'assets/src/admin/style.css';
-		}
-
-		$version = file_exists( $script_path ) ? filemtime( $script_path ) : ALYNT_PU_VERSION;
-
-		wp_enqueue_script( $script_handle, $script_url, array(), $version, true );
-		wp_enqueue_style( $script_handle, $style_url, array(), $version );
-
-		wp_localize_script(
-			$script_handle,
-			'alyntPuAdmin',
-			array(
-				'ajaxurl'              => admin_url( 'admin-ajax.php' ),
-				'checking'             => __( 'Checking...', 'alynt-plugin-updater' ),
-				'upToDate'             => __( 'Up to date ✓', 'alynt-plugin-updater' ),
-				'updateAvailable'      => __( 'Update available (v%s)', 'alynt-plugin-updater' ),
-				'checkFailed'          => __( 'Check failed', 'alynt-plugin-updater' ),
-				'checkingAll'          => __( 'Checking all updates...', 'alynt-plugin-updater' ),
-				'checkAllComplete'     => __( 'Check complete.', 'alynt-plugin-updater' ),
-				'checkAllFailed'       => __( 'Check failed.', 'alynt-plugin-updater' ),
-				'copied'               => __( 'Copied!', 'alynt-plugin-updater' ),
-				'checkAllNonce'        => $check_all_nonce,
-				'generateSecretNonce'  => $generate_secret_nonce,
-			)
-		);
+		Asset_Manager::enqueue_admin_assets();
+		Asset_Manager::localize_admin_script( $this->get_settings_localization_data( $check_all_nonce, $generate_secret_nonce ) );
 
 		require ALYNT_PU_PLUGIN_DIR . 'admin/partials/settings-page.php';
 	}
@@ -150,6 +147,7 @@ class Settings {
 	/**
 	 * Register AJAX handler for "Check All Updates" button.
 	 *
+	 * @since 1.0.0
 	 * @return void
 	 */
 	public function register_ajax_handlers(): void {
@@ -160,6 +158,7 @@ class Settings {
 	/**
 	 * AJAX callback for checking all updates.
 	 *
+	 * @since 1.0.0
 	 * @return void
 	 */
 	public function ajax_check_all_updates(): void {
@@ -172,13 +171,7 @@ class Settings {
 			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'alynt-plugin-updater' ) ), 403 );
 		}
 
-		$scanner        = new Plugin_Scanner();
-		$version_util   = new Version_Util();
-		$logger         = new Logger();
-		$github_api     = new GitHub_API( $version_util, $logger );
-		$update_checker = new Update_Checker( $scanner, $github_api, $version_util );
-
-		$results = $update_checker->check_all_updates( true );
+		$results = $this->update_checker->check_all_updates( true );
 		update_option( 'alynt_pu_last_check', time() );
 		delete_site_transient( 'update_plugins' );
 
@@ -188,6 +181,7 @@ class Settings {
 	/**
 	 * Sanitize frequency option.
 	 *
+	 * @since 1.0.0
 	 * @param string $value Raw value.
 	 * @return string Sanitized value.
 	 */
@@ -201,19 +195,35 @@ class Settings {
 	/**
 	 * Sanitize cache duration option.
 	 *
+	 * @since 1.0.0
 	 * @param mixed $value Raw value.
 	 * @return int Sanitized value.
 	 */
 	public function sanitize_cache_duration( $value ): int {
-		$value = absint( $value );
-		$value = max( 300, min( 86400, $value ) );
+		$sanitized = absint( $value );
+		$clamped   = max( Config::CACHE_DURATION_MIN, min( Config::CACHE_DURATION_MAX, $sanitized ) );
 
-		return $value;
+		if ( $clamped !== $sanitized ) {
+			add_settings_error(
+				Config::CACHE_DURATION_OPTION,
+				'cache_duration_clamped',
+				sprintf(
+					/* translators: 1: minimum value, 2: maximum value */
+					__( 'Cache duration must be between %1$d and %2$d seconds. Your value has been adjusted.', 'alynt-plugin-updater' ),
+					Config::CACHE_DURATION_MIN,
+					Config::CACHE_DURATION_MAX
+				),
+				'warning'
+			);
+		}
+
+		return $clamped;
 	}
 
 	/**
 	 * Get available frequency options.
 	 *
+	 * @since 1.0.0
 	 * @return array<string, string> Value => Label pairs.
 	 */
 	public function get_frequency_options(): array {
@@ -226,8 +236,39 @@ class Settings {
 	}
 
 	/**
+	 * Build localized script data for the settings page.
+	 *
+	 * @since 1.0.0
+	 * @param string $check_all_nonce Check-all updates nonce.
+	 * @param string $generate_secret_nonce Generate-secret nonce.
+	 * @return array<string, string>
+	 */
+	private function get_settings_localization_data( string $check_all_nonce, string $generate_secret_nonce ): array {
+		return array_merge(
+			Asset_Manager::get_base_localization_data(),
+			array(
+				'checkingAll'           => __( 'Checking all updates...', 'alynt-plugin-updater' ),
+				'checkAllComplete'      => __( 'Check complete.', 'alynt-plugin-updater' ),
+				'checkAllFailed'        => __( 'Check failed.', 'alynt-plugin-updater' ),
+				/* translators: 1: total count, 2: updates count, 3: error count */
+				'checkAllSummary'       => __( '%1$d plugins checked: %2$d update(s) available, %3$d error(s).', 'alynt-plugin-updater' ),
+				'copied'                => __( 'Copied!', 'alynt-plugin-updater' ),
+				'copyFailed'            => __( 'Copy failed.', 'alynt-plugin-updater' ),
+				'generatingSecret'      => __( 'Generating...', 'alynt-plugin-updater' ),
+				'secretGenerated'       => __( 'New secret generated.', 'alynt-plugin-updater' ),
+				'secretFailed'          => __( 'Failed to generate secret.', 'alynt-plugin-updater' ),
+				'confirmGenerateSecret' => __( "Generate a new webhook secret?\n\nYour existing GitHub webhook configuration will stop working until you update the secret in your repository's webhook settings.", 'alynt-plugin-updater' ),
+				'networkError'          => __( 'You appear to be offline. Check your connection and try again.', 'alynt-plugin-updater' ),
+				'checkAllNonce'         => $check_all_nonce,
+				'generateSecretNonce'   => $generate_secret_nonce,
+			)
+		);
+	}
+
+	/**
 	 * AJAX callback for generating webhook secret.
 	 *
+	 * @since 1.0.0
 	 * @return void
 	 */
 	public function ajax_generate_secret(): void {

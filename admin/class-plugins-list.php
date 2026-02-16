@@ -17,11 +17,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Class Plugins_List.
+ *
+ * @since 1.0.0
  */
 class Plugins_List {
 	/**
 	 * Plugin scanner.
 	 *
+	 * @since 1.0.0
 	 * @var Plugin_Scanner
 	 */
 	private Plugin_Scanner $scanner;
@@ -29,6 +32,7 @@ class Plugins_List {
 	/**
 	 * GitHub API client.
 	 *
+	 * @since 1.0.0
 	 * @var GitHub_API
 	 */
 	private GitHub_API $github_api;
@@ -36,6 +40,7 @@ class Plugins_List {
 	/**
 	 * Update checker.
 	 *
+	 * @since 1.0.0
 	 * @var Update_Checker
 	 */
 	private Update_Checker $update_checker;
@@ -43,6 +48,7 @@ class Plugins_List {
 	/**
 	 * Constructor.
 	 *
+	 * @since 1.0.0
 	 * @param Plugin_Scanner $scanner      Plugin scanner.
 	 * @param GitHub_API     $github_api   GitHub API client.
 	 * @param Update_Checker $update_checker Update checker.
@@ -56,6 +62,7 @@ class Plugins_List {
 	/**
 	 * Register hooks.
 	 *
+	 * @since 1.0.0
 	 * @return void
 	 */
 	public function register_hooks(): void {
@@ -67,6 +74,7 @@ class Plugins_List {
 	/**
 	 * Add "Check for updates" link to plugin row.
 	 *
+	 * @since 1.0.0
 	 * @param array  $links       Existing links.
 	 * @param string $plugin_file Plugin file path.
 	 * @return array Modified links.
@@ -79,7 +87,7 @@ class Plugins_List {
 		}
 
 		$links[] = sprintf(
-			'<a href="#" class="alynt-pu-check-update" data-plugin="%s" data-nonce="%s">%s</a>',
+			'<button type="button" class="button-link alynt-pu-check-update" data-plugin="%s" data-nonce="%s">%s</button>',
 			esc_attr( $plugin_file ),
 			esc_attr( wp_create_nonce( 'alynt_pu_check_' . $plugin_file ) ),
 			esc_html__( 'Check for updates', 'alynt-plugin-updater' )
@@ -91,6 +99,7 @@ class Plugins_List {
 	/**
 	 * Enqueue admin scripts and styles.
 	 *
+	 * @since 1.0.0
 	 * @param string $hook_suffix Current admin page hook suffix.
 	 * @return void
 	 */
@@ -99,43 +108,14 @@ class Plugins_List {
 			return;
 		}
 
-		$script_handle = 'alynt-pu-admin';
-		$script_path   = ALYNT_PU_PLUGIN_DIR . 'assets/dist/admin/index.js';
-		$script_url    = ALYNT_PU_PLUGIN_URL . 'assets/dist/admin/index.js';
-		$style_path    = ALYNT_PU_PLUGIN_DIR . 'assets/dist/admin/style.css';
-		$style_url     = ALYNT_PU_PLUGIN_URL . 'assets/dist/admin/style.css';
-
-		if ( ! file_exists( $script_path ) ) {
-			$script_path = ALYNT_PU_PLUGIN_DIR . 'assets/src/admin/index.js';
-			$script_url  = ALYNT_PU_PLUGIN_URL . 'assets/src/admin/index.js';
-		}
-
-		if ( ! file_exists( $style_path ) ) {
-			$style_path = ALYNT_PU_PLUGIN_DIR . 'assets/src/admin/style.css';
-			$style_url  = ALYNT_PU_PLUGIN_URL . 'assets/src/admin/style.css';
-		}
-
-		$version = file_exists( $script_path ) ? filemtime( $script_path ) : ALYNT_PU_VERSION;
-
-		wp_enqueue_script( $script_handle, $script_url, array(), $version, true );
-		wp_enqueue_style( $script_handle, $style_url, array(), $version );
-
-		wp_localize_script(
-			$script_handle,
-			'alyntPuAdmin',
-			array(
-				'ajaxurl'         => admin_url( 'admin-ajax.php' ),
-				'checking'        => __( 'Checking...', 'alynt-plugin-updater' ),
-				'upToDate'        => __( 'Up to date ✓', 'alynt-plugin-updater' ),
-				'updateAvailable' => __( 'Update available (v%s)', 'alynt-plugin-updater' ),
-				'checkFailed'     => __( 'Check failed', 'alynt-plugin-updater' ),
-			)
-		);
+		Asset_Manager::enqueue_admin_assets();
+		Asset_Manager::localize_admin_script( Asset_Manager::get_base_localization_data() );
 	}
 
 	/**
 	 * AJAX handler for single plugin update check.
 	 *
+	 * @since 1.0.0
 	 * @return void
 	 */
 	public function ajax_check_single_update(): void {
@@ -158,6 +138,16 @@ class Plugins_List {
 		$this->github_api->clear_cache( $github_data['owner'], $github_data['repo'] );
 		$result = $this->update_checker->check_plugin_update( $plugin_file );
 		delete_site_transient( 'update_plugins' );
+
+		if ( ! empty( $result['error'] ) ) {
+			wp_send_json_error(
+				array(
+					'message' => ! empty( $result['error_message'] )
+						? $result['error_message']
+						: __( 'Could not check for updates. Please try again later.', 'alynt-plugin-updater' ),
+				)
+			);
+		}
 
 		wp_send_json_success(
 			array(

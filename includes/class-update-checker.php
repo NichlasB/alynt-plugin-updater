@@ -16,11 +16,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Class Update_Checker.
+ *
+ * @since 1.0.0
  */
 class Update_Checker {
 	/**
 	 * Plugin scanner.
 	 *
+	 * @since 1.0.0
 	 * @var Plugin_Scanner
 	 */
 	private Plugin_Scanner $scanner;
@@ -28,6 +31,7 @@ class Update_Checker {
 	/**
 	 * GitHub API client.
 	 *
+	 * @since 1.0.0
 	 * @var GitHub_API
 	 */
 	private GitHub_API $github_api;
@@ -35,37 +39,61 @@ class Update_Checker {
 	/**
 	 * Version utility.
 	 *
+	 * @since 1.0.0
 	 * @var Version_Util
 	 */
 	private Version_Util $version_util;
 
 	/**
+	 * Source directory fixer.
+	 *
+	 * @since 1.0.0
+	 * @var Source_Directory_Fixer
+	 */
+	private Source_Directory_Fixer $source_fixer;
+
+	/**
+	 * Logger.
+	 *
+	 * @since 1.0.0
+	 * @var Logger
+	 */
+	private Logger $logger;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Plugin_Scanner $scanner      Plugin scanner.
-	 * @param GitHub_API     $github_api   GitHub API client.
-	 * @param Version_Util   $version_util Version utility.
+	 * @since 1.0.0
+	 * @param Plugin_Scanner        $scanner      Plugin scanner.
+	 * @param GitHub_API            $github_api   GitHub API client.
+	 * @param Version_Util          $version_util Version utility.
+	 * @param Source_Directory_Fixer $source_fixer Source directory fixer.
+	 * @param Logger                $logger       Logger.
 	 */
-	public function __construct( Plugin_Scanner $scanner, GitHub_API $github_api, Version_Util $version_util ) {
+	public function __construct( Plugin_Scanner $scanner, GitHub_API $github_api, Version_Util $version_util, Source_Directory_Fixer $source_fixer, Logger $logger ) {
 		$this->scanner      = $scanner;
 		$this->github_api   = $github_api;
 		$this->version_util = $version_util;
+		$this->source_fixer = $source_fixer;
+		$this->logger       = $logger;
 	}
 
 	/**
 	 * Register WordPress update hooks.
 	 *
+	 * @since 1.0.0
 	 * @return void
 	 */
 	public function register_hooks(): void {
 		add_filter( 'pre_set_site_transient_update_plugins', array( $this, 'check_for_updates' ) );
 		add_filter( 'plugins_api', array( $this, 'plugin_information' ), 10, 3 );
-		add_filter( 'upgrader_source_selection', array( $this, 'fix_source_directory' ), 10, 4 );
+		add_filter( 'upgrader_source_selection', array( $this->source_fixer, 'fix_source_directory' ), 10, 4 );
 	}
 
 	/**
 	 * Filter callback for pre_set_site_transient_update_plugins.
 	 *
+	 * @since 1.0.0
 	 * @param object $transient Update transient.
 	 * @return object Modified transient.
 	 */
@@ -80,7 +108,7 @@ class Update_Checker {
 		}
 
 		foreach ( $plugins as $plugin_file => $plugin_data ) {
-			$release = $this->github_api->get_latest_release( $plugin_data['owner'], $plugin_data['repo'] );
+			$release = $this->github_api->get_latest_release( $plugin_data['owner'], $plugin_data['repo'], false, true );
 			if ( is_wp_error( $release ) ) {
 				continue;
 			}
@@ -115,6 +143,7 @@ class Update_Checker {
 	/**
 	 * Filter callback for plugins_api.
 	 *
+	 * @since 1.0.0
 	 * @param false|object|array $result Default result.
 	 * @param string             $action API action.
 	 * @param object             $args   Arguments.
@@ -145,6 +174,7 @@ class Update_Checker {
 	/**
 	 * Check for update for a single plugin.
 	 *
+	 * @since 1.0.0
 	 * @param string $plugin_file Plugin file path.
 	 * @return array Result data.
 	 */
@@ -160,7 +190,18 @@ class Update_Checker {
 		}
 
 		$release = $this->github_api->get_latest_release( $plugin_data['owner'], $plugin_data['repo'] );
-		if ( is_wp_error( $release ) || empty( $release['version'] ) ) {
+		if ( is_wp_error( $release ) ) {
+			return array(
+				'update_available' => false,
+				'current_version'  => $plugin_data['version'],
+				'new_version'      => '',
+				'download_url'     => '',
+				'error'            => true,
+				'error_message'    => $release->get_error_message(),
+			);
+		}
+
+		if ( empty( $release['version'] ) ) {
 			return array(
 				'update_available' => false,
 				'current_version'  => $plugin_data['version'],
@@ -180,8 +221,9 @@ class Update_Checker {
 	}
 
 	/**
-	 * Check all managed plugins for updates.
+	 * Check all managed plugins for updates and persist results.
 	 *
+	 * @since 1.0.0
 	 * @param bool $force_fresh Force fresh API calls.
 	 * @return array<string, array> Results keyed by plugin file.
 	 */
@@ -192,11 +234,21 @@ class Update_Checker {
 		foreach ( $plugins as $plugin_file => $plugin_data ) {
 			$release = $this->github_api->get_latest_release( $plugin_data['owner'], $plugin_data['repo'], $force_fresh );
 			if ( is_wp_error( $release ) ) {
+				$this->logger->warning(
+					'Update check failed for plugin.',
+					array(
+						'plugin' => $plugin_file,
+						'code'   => $release->get_error_code(),
+						'error'  => $release->get_error_message(),
+					)
+				);
 				$results[ $plugin_file ] = array(
 					'update_available' => false,
 					'current_version'  => $plugin_data['version'],
 					'new_version'      => '',
 					'download_url'     => '',
+					'error'            => true,
+					'error_message'    => $release->get_error_message(),
 				);
 				continue;
 			}
@@ -209,86 +261,26 @@ class Update_Checker {
 			);
 		}
 
+		update_option( 'alynt_pu_last_results', $results, false );
+
 		return $results;
 	}
 
 	/**
-	 * Fix the source directory name for GitHub downloads.
+	 * Get stored results from the last update check.
 	 *
-	 * GitHub zipballs extract to {owner}-{repo}-{hash} format.
-	 * This filter renames the folder to match the expected plugin slug.
-	 *
-	 * @param string       $source        File source location.
-	 * @param string       $remote_source Remote file source location.
-	 * @param \WP_Upgrader $upgrader      WP_Upgrader instance.
-	 * @param array        $args          Extra arguments passed to hooked filters.
-	 * @return string|WP_Error Corrected source path or WP_Error.
+	 * @since 1.0.0
+	 * @return array<string, array> Results keyed by plugin file, or empty array.
 	 */
-	public function fix_source_directory( string $source, string $remote_source, $upgrader, array $args ) {
-		if ( ! isset( $args['plugin'] ) || empty( $args['plugin'] ) ) {
-			return $source;
-		}
-
-		$plugin_file = $args['plugin'];
-		$plugins     = $this->scanner->get_github_plugins();
-
-		if ( ! isset( $plugins[ $plugin_file ] ) ) {
-			return $source;
-		}
-
-		$expected_slug = dirname( $plugin_file );
-		$source_slug   = basename( untrailingslashit( $source ) );
-
-		// Already correct name - no action needed.
-		if ( $source_slug === $expected_slug ) {
-			return $source;
-		}
-
-		// Check if this looks like a GitHub-style folder name (owner-repo-hash).
-		if ( strpos( $source_slug, '-' ) === false ) {
-			return $source;
-		}
-
-		global $wp_filesystem;
-
-		if ( ! $wp_filesystem ) {
-			require_once ABSPATH . 'wp-admin/includes/file.php';
-			WP_Filesystem();
-		}
-
-		$new_source = trailingslashit( dirname( untrailingslashit( $source ) ) ) . $expected_slug . '/';
-
-		// If destination already exists, remove it first.
-		if ( $wp_filesystem->exists( $new_source ) ) {
-			$wp_filesystem->delete( $new_source, true );
-		}
-
-		if ( $wp_filesystem->move( $source, $new_source ) ) {
-			return $new_source;
-		}
-
-		// Fallback: try copy + delete instead of move (Windows compatibility).
-		if ( $wp_filesystem->copy( $source, $new_source, true, FS_CHMOD_DIR ) || copy_dir( $source, $new_source ) !== true ) {
-			if ( copy_dir( $source, $new_source ) === true ) {
-				$wp_filesystem->delete( $source, true );
-				return $new_source;
-			}
-		}
-
-		return new WP_Error(
-			'rename_failed',
-			sprintf(
-				/* translators: 1: source folder, 2: destination folder */
-				__( 'Could not rename plugin folder from %1$s to %2$s.', 'alynt-plugin-updater' ),
-				$source_slug,
-				$expected_slug
-			)
-		);
+	public function get_stored_results(): array {
+		$results = get_option( 'alynt_pu_last_results', array() );
+		return is_array( $results ) ? $results : array();
 	}
 
 	/**
 	 * Build plugin info object for plugins_api.
 	 *
+	 * @since 1.0.0
 	 * @param string $plugin_file Plugin file path.
 	 * @param array  $plugin_data Plugin data.
 	 * @param array  $release     Release data.

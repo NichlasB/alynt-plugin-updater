@@ -220,16 +220,18 @@ alynt-plugin-updater/
 │   ├── class-activator.php
 │   ├── class-deactivator.php
 │   ├── class-plugin.php
+│   ├── class-config.php
+│   ├── class-service-factory.php
 │   ├── class-logger.php
 │   ├── class-version-util.php
 │   ├── class-plugin-scanner.php
 │   ├── class-github-api.php
 │   ├── class-update-checker.php
-│   ├── class-plugin-installer.php
 │   ├── class-cron-manager.php
 │   └── class-webhook-handler.php
 ├── admin/
 │   ├── class-admin-menu.php
+│   ├── class-asset-manager.php
 │   ├── class-settings.php
 │   ├── class-plugins-list.php
 │   └── partials/
@@ -410,7 +412,6 @@ Uses esbuild to:
 - `alynt_pu_github_plugins`
 - `alynt_pu_rate_limited`
 - All `alynt_pu_release_*` transients (use SQL LIKE query)
-- All `alynt_pu_updating_*` transients
 
 **Unschedule cron:**
 - Clear `alynt_pu_scheduled_check` event
@@ -425,7 +426,7 @@ Uses esbuild to:
 4. [ ] Create `class-plugin-scanner.php`
 5. [ ] Create `class-github-api.php` with caching
 6. [ ] Create `class-update-checker.php` with WordPress hooks
-7. [ ] Create `class-plugin-installer.php` with folder handling
+7. [ ] Create `class-config.php` and `class-service-factory.php` for shared wiring/config
 8. [ ] Create `class-cron-manager.php`
 9. [ ] Create `class-webhook-handler.php` with REST endpoint
 10. [ ] Create `class-plugin.php` orchestrator
