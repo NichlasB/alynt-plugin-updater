@@ -1,0 +1,44 @@
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Development dependencies
+node_modules
+vendor
+
+# Build tools and config
+package.json
+package-lock.json
+composer.json
+composer.lock
+webpack.config.js
+scripts/
+.eslintrc*
+.phpcs.xml*
+phpcs.xml*
+phpunit.xml*
+
+# Tests
+tests/
+
+# Source assets (dist is deployed instead)
+assets/src/
+
+# CI/CD
+.github/
+.travis.yml
+.circleci/
+
+# IDE and OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Documentation and meta
+.distignore
+CHANGELOG.md
+CONTRIBUTING.md

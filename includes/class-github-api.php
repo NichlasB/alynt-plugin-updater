@@ -165,7 +165,7 @@ class GitHub_API {
 
 		if ( isset( $cached['error'] ) && true === $cached['error'] ) {
 			return new WP_Error(
-				$cached['code'],
+				isset( $cached['code'] ) ? $cached['code'] : 'cached_error',
 				/* translators: 1: GitHub repository owner, 2: GitHub repository name. */
 				sprintf( __( 'No releases or tags found for %1$s/%2$s.', 'alynt-plugin-updater' ), $owner, $repo )
 			);
@@ -210,16 +210,16 @@ class GitHub_API {
 		}
 
 		if ( GitHub_Http_Client::HTTP_STATUS_FORBIDDEN === $response['code'] ) {
-			return $this->handle_rate_limit_error( $cached );
+			return $this->handle_forbidden_response( $cached, $owner, $repo );
 		}
 
 		if ( GitHub_Http_Client::HTTP_STATUS_OK !== $response['code'] ) {
-			return $this->fallback_on_error( new WP_Error( 'api_error', __( 'GitHub API error.', 'alynt-plugin-updater' ) ), $cached, $owner, $repo );
+			return $this->fallback_on_error( $this->create_api_error( __( 'GitHub API error.', 'alynt-plugin-updater' ) ), $cached, $owner, $repo );
 		}
 
 		$data = json_decode( $response['body'], true );
 		if ( ! is_array( $data ) || empty( $data['tag_name'] ) ) {
-			return $this->fallback_on_error( new WP_Error( 'api_error', __( 'Invalid release data from GitHub.', 'alynt-plugin-updater' ) ), $cached, $owner, $repo );
+			return $this->fallback_on_error( $this->create_api_error( __( 'Invalid release data from GitHub.', 'alynt-plugin-updater' ) ), $cached, $owner, $repo );
 		}
 
 		$release = $this->build_release_from_data( $data );
@@ -315,7 +315,11 @@ class GitHub_API {
 		}
 
 		if ( GitHub_Http_Client::HTTP_STATUS_FORBIDDEN === $response['code'] ) {
-			return $this->handle_rate_limit_error( $cached );
+			return $this->handle_forbidden_response( $cached, $owner, $repo );
+		}
+
+		if ( GitHub_Http_Client::HTTP_STATUS_OK !== $response['code'] ) {
+			return $this->fallback_on_error( $this->create_api_error( __( 'GitHub API error.', 'alynt-plugin-updater' ) ), $cached, $owner, $repo );
 		}
 
 		$data = json_decode( $response['body'], true );
@@ -351,6 +355,41 @@ class GitHub_API {
 		$this->cache->set( $owner, $repo, $release );
 
 		return $release;
+	}
+
+	/**
+	 * Handle forbidden responses with rate-limit awareness.
+	 *
+	 * @param mixed  $cached Cached data.
+	 * @param string $owner  Repository owner.
+	 * @param string $repo   Repository name.
+	 * @return array|WP_Error
+	 */
+	private function handle_forbidden_response( $cached, string $owner, string $repo ) {
+		if ( $this->http_client->is_rate_limited() ) {
+			return $this->handle_rate_limit_error( $cached );
+		}
+
+		return $this->fallback_on_error( $this->create_forbidden_error(), $cached, $owner, $repo );
+	}
+
+	/**
+	 * Create a standard forbidden-response error.
+	 *
+	 * @return WP_Error
+	 */
+	private function create_forbidden_error(): WP_Error {
+		return new WP_Error( 'forbidden', __( 'Access denied by GitHub. The repository may be private or restricted.', 'alynt-plugin-updater' ) );
+	}
+
+	/**
+	 * Create a standard API error payload.
+	 *
+	 * @param string $message Error message.
+	 * @return WP_Error
+	 */
+	private function create_api_error( string $message ): WP_Error {
+		return new WP_Error( 'api_error', $message );
 	}
 
 	/**

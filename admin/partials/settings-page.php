@@ -150,7 +150,7 @@ if ( $rate_limit_reset ) {
 				<?php foreach ( $plugins as $plugin_file => $plugin_data ) : ?>
 					<?php
 					$status = __( 'Unknown', 'alynt-plugin-updater' );
-					if ( isset( $results[ $plugin_file ] ) ) {
+					if ( isset( $results[ $plugin_file ] ) && is_array( $results[ $plugin_file ] ) ) {
 						$result = $results[ $plugin_file ];
 						if ( ! empty( $result['update_available'] ) ) {
 							$status = sprintf(

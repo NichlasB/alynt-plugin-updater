@@ -5,6 +5,10 @@
  * @package AlyntPluginUpdater
  */
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
 use PHPUnit\Framework\TestCase;
 
 class Alynt_Plugin_Updater_Sample_Test extends TestCase {

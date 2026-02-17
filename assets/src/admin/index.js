@@ -42,6 +42,40 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => span.remove(), 5000);
   }
 
+  /**
+   * Send an authenticated WordPress AJAX request.
+   *
+   * @param {string} action  AJAX action name.
+   * @param {Object} payload Additional request payload.
+   * @returns {Promise<Object>} Parsed JSON response.
+   */
+  async function postAjax(action, payload = {}) {
+    const response = await fetch(alyntPuAdmin.ajaxurl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        action,
+        ...payload,
+      }),
+    });
+
+    return response.json();
+  }
+
+  /**
+   * Get an error message that prefers network-specific feedback.
+   *
+   * @param {string} fallbackMessage Message used when online.
+   * @returns {string} User-facing message.
+   */
+  function getNetworkAwareMessage(fallbackMessage) {
+    if (!navigator.onLine) {
+      return alyntPuAdmin.networkError || 'You appear to be offline.';
+    }
+
+    return fallbackMessage;
+  }
+
   checkLinks.forEach((link) => {
     link.addEventListener('click', async (event) => {
       event.preventDefault();
@@ -59,16 +93,10 @@ document.addEventListener('DOMContentLoaded', () => {
       link.style.pointerEvents = 'none';
 
       try {
-        const response = await fetch(alyntPuAdmin.ajaxurl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            action: 'alynt_pu_check_single_update',
-            plugin,
-            nonce,
-          }),
+        const data = await postAjax('alynt_pu_check_single_update', {
+          plugin,
+          nonce,
         });
-        const data = await response.json();
 
         if (data.success) {
           if (data.data.update_available) {
@@ -89,9 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
           announce(msg);
         }
       } catch (error) {
-        const msg = !navigator.onLine
-          ? (alyntPuAdmin.networkError || 'You appear to be offline.')
-          : alyntPuAdmin.checkFailed;
+        const msg = getNetworkAwareMessage(alyntPuAdmin.checkFailed);
         link.textContent = alyntPuAdmin.checkFailed;
         link.style.color = '#d63638';
         link.setAttribute('title', msg);
@@ -119,15 +145,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       try {
-        const response = await fetch(alyntPuAdmin.ajaxurl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            action: 'alynt_pu_check_all_updates',
-            nonce: alyntPuAdmin.checkAllNonce,
-          }),
+        const data = await postAjax('alynt_pu_check_all_updates', {
+          nonce: alyntPuAdmin.checkAllNonce,
         });
-        const data = await response.json();
 
         if (checkAllStatus) {
           checkAllStatus.removeAttribute('aria-busy');
@@ -154,9 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (error) {
         if (checkAllStatus) {
           checkAllStatus.removeAttribute('aria-busy');
-          const msg = !navigator.onLine
-            ? (alyntPuAdmin.networkError || 'You appear to be offline.')
-            : alyntPuAdmin.checkAllFailed;
+          const msg = getNetworkAwareMessage(alyntPuAdmin.checkAllFailed);
           checkAllStatus.textContent = msg;
           announce(msg);
         }
@@ -182,15 +200,9 @@ document.addEventListener('DOMContentLoaded', () => {
       generateSecretBtn.textContent = alyntPuAdmin.generatingSecret || 'Generating...';
 
       try {
-        const response = await fetch(alyntPuAdmin.ajaxurl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            action: 'alynt_pu_generate_secret',
-            nonce: alyntPuAdmin.generateSecretNonce,
-          }),
+        const data = await postAjax('alynt_pu_generate_secret', {
+          nonce: alyntPuAdmin.generateSecretNonce,
         });
-        const data = await response.json();
 
         if (data.success) {
           const secretField = document.getElementById('alynt_pu_webhook_secret');
@@ -205,9 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
           announce(msg);
         }
       } catch (error) {
-        const msg = !navigator.onLine
-          ? (alyntPuAdmin.networkError || 'You appear to be offline.')
-          : (alyntPuAdmin.secretFailed || 'Failed to generate secret.');
+        const msg = getNetworkAwareMessage(alyntPuAdmin.secretFailed || 'Failed to generate secret.');
         showInlineNotice(generateSecretBtn, msg, 'error');
         announce(msg);
       }

@@ -38,6 +38,30 @@ class Webhook_Handler {
 	private const REST_ROUTE = '/webhook';
 
 	/**
+	 * Transient key prefix for webhook rate limiting.
+	 *
+	 * @since 1.0.0
+	 * @var string
+	 */
+	private const RATE_LIMIT_PREFIX = 'alynt_pu_wh_rl_';
+
+	/**
+	 * Maximum webhook requests per window.
+	 *
+	 * @since 1.0.0
+	 * @var int
+	 */
+	private const RATE_LIMIT_MAX = 10;
+
+	/**
+	 * Rate limit window in seconds.
+	 *
+	 * @since 1.0.0
+	 * @var int
+	 */
+	private const RATE_LIMIT_WINDOW = 60;
+
+	/**
 	 * Plugin scanner.
 	 *
 	 * @since 1.0.0
@@ -111,6 +135,11 @@ class Webhook_Handler {
 	 * @return WP_REST_Response Response object.
 	 */
 	public function handle_webhook( WP_REST_Request $request ): WP_REST_Response {
+		$rate_limit_response = $this->check_rate_limit();
+		if ( null !== $rate_limit_response ) {
+			return $rate_limit_response;
+		}
+
 		$signature = $request->get_header( 'X-Hub-Signature-256' );
 		if ( empty( $signature ) ) {
 			return new WP_REST_Response( array( 'error' => 'missing_signature' ), 400 );
@@ -230,5 +259,32 @@ class Webhook_Handler {
 	 */
 	public static function generate_secret(): string {
 		return wp_generate_password( 32, false );
+	}
+
+	/**
+	 * Check webhook rate limit for the current IP.
+	 *
+	 * Allows a maximum of RATE_LIMIT_MAX requests per RATE_LIMIT_WINDOW seconds
+	 * from a single IP address.
+	 *
+	 * @since 1.0.0
+	 * @return WP_REST_Response|null Error response if rate limited, null if allowed.
+	 */
+	private function check_rate_limit(): ?WP_REST_Response {
+		$ip  = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : 'unknown';
+		$key = self::RATE_LIMIT_PREFIX . md5( $ip );
+
+		$count = (int) get_transient( $key );
+		if ( $count >= self::RATE_LIMIT_MAX ) {
+			$this->logger->warning(
+				'Webhook rate limit exceeded.',
+				array( 'ip' => $ip )
+			);
+			return new WP_REST_Response( array( 'error' => 'rate_limited' ), 429 );
+		}
+
+		set_transient( $key, $count + 1, self::RATE_LIMIT_WINDOW );
+
+		return null;
 	}
 }

@@ -114,6 +114,14 @@ class Update_Checker {
 			}
 
 			if ( empty( $release['download_url'] ) ) {
+				$this->logger->warning(
+					'Release has no download URL, skipping update entry.',
+					array(
+						'plugin' => $plugin_file,
+						'owner'  => $plugin_data['owner'],
+						'repo'   => $plugin_data['repo'],
+					)
+				);
 				continue;
 			}
 
@@ -181,43 +189,16 @@ class Update_Checker {
 	public function check_plugin_update( string $plugin_file ): array {
 		$plugin_data = $this->scanner->get_plugin_github_data( $plugin_file );
 		if ( null === $plugin_data ) {
-			return array(
-				'update_available' => false,
-				'current_version'  => '',
-				'new_version'      => '',
-				'download_url'     => '',
-			);
+			return $this->build_empty_result();
 		}
 
+		$current_version = (string) $plugin_data['version'];
 		$release = $this->github_api->get_latest_release( $plugin_data['owner'], $plugin_data['repo'] );
 		if ( is_wp_error( $release ) ) {
-			return array(
-				'update_available' => false,
-				'current_version'  => $plugin_data['version'],
-				'new_version'      => '',
-				'download_url'     => '',
-				'error'            => true,
-				'error_message'    => $release->get_error_message(),
-			);
+			return $this->build_error_result( $current_version, $release );
 		}
 
-		if ( empty( $release['version'] ) ) {
-			return array(
-				'update_available' => false,
-				'current_version'  => $plugin_data['version'],
-				'new_version'      => '',
-				'download_url'     => '',
-			);
-		}
-
-		$update_available = $this->version_util->is_update_available( $plugin_data['version'], $release['version'] );
-
-		return array(
-			'update_available' => $update_available,
-			'current_version'  => $plugin_data['version'],
-			'new_version'      => $release['version'],
-			'download_url'     => $release['download_url'],
-		);
+		return $this->build_release_result( $current_version, $release );
 	}
 
 	/**
@@ -232,6 +213,7 @@ class Update_Checker {
 		$results = array();
 
 		foreach ( $plugins as $plugin_file => $plugin_data ) {
+			$current_version = (string) $plugin_data['version'];
 			$release = $this->github_api->get_latest_release( $plugin_data['owner'], $plugin_data['repo'], $force_fresh );
 			if ( is_wp_error( $release ) ) {
 				$this->logger->warning(
@@ -242,23 +224,11 @@ class Update_Checker {
 						'error'  => $release->get_error_message(),
 					)
 				);
-				$results[ $plugin_file ] = array(
-					'update_available' => false,
-					'current_version'  => $plugin_data['version'],
-					'new_version'      => '',
-					'download_url'     => '',
-					'error'            => true,
-					'error_message'    => $release->get_error_message(),
-				);
+				$results[ $plugin_file ] = $this->build_error_result( $current_version, $release );
 				continue;
 			}
 
-			$results[ $plugin_file ] = array(
-				'update_available' => $this->version_util->is_update_available( $plugin_data['version'], $release['version'] ),
-				'current_version'  => $plugin_data['version'],
-				'new_version'      => $release['version'],
-				'download_url'     => $release['download_url'],
-			);
+			$results[ $plugin_file ] = $this->build_release_result( $current_version, $release );
 		}
 
 		update_option( 'alynt_pu_last_results', $results, false );
@@ -275,6 +245,62 @@ class Update_Checker {
 	public function get_stored_results(): array {
 		$results = get_option( 'alynt_pu_last_results', array() );
 		return is_array( $results ) ? $results : array();
+	}
+
+	/**
+	 * Build a default "no update" result shape.
+	 *
+	 * @since 1.0.0
+	 * @param string $current_version Current plugin version.
+	 * @return array<string, mixed> Result payload.
+	 */
+	private function build_empty_result( string $current_version = '' ): array {
+		return array(
+			'update_available' => false,
+			'current_version'  => $current_version,
+			'new_version'      => '',
+			'download_url'     => '',
+		);
+	}
+
+	/**
+	 * Build an error result payload for failed update checks.
+	 *
+	 * @since 1.0.0
+	 * @param string   $current_version Current plugin version.
+	 * @param WP_Error $error           Error instance from GitHub lookup.
+	 * @return array<string, mixed> Result payload.
+	 */
+	private function build_error_result( string $current_version, WP_Error $error ): array {
+		$result                  = $this->build_empty_result( $current_version );
+		$result['error']         = true;
+		$result['error_message'] = $error->get_error_message();
+
+		return $result;
+	}
+
+	/**
+	 * Build a normalized result payload from release data.
+	 *
+	 * @since 1.0.0
+	 * @param string $current_version Current plugin version.
+	 * @param array  $release         Release payload.
+	 * @return array<string, mixed> Result payload.
+	 */
+	private function build_release_result( string $current_version, array $release ): array {
+		$new_version  = isset( $release['version'] ) ? (string) $release['version'] : '';
+		$download_url = isset( $release['download_url'] ) ? (string) $release['download_url'] : '';
+
+		if ( '' === $new_version ) {
+			return $this->build_empty_result( $current_version );
+		}
+
+		return array(
+			'update_available' => $this->version_util->is_update_available( $current_version, $new_version ),
+			'current_version'  => $current_version,
+			'new_version'      => $new_version,
+			'download_url'     => $download_url,
+		);
 	}
 
 	/**

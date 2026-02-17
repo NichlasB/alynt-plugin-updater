@@ -120,10 +120,9 @@ class Plugins_List {
 	 */
 	public function ajax_check_single_update(): void {
 		$plugin_file = isset( $_POST['plugin'] ) ? sanitize_text_field( wp_unslash( $_POST['plugin'] ) ) : '';
-		$nonce       = isset( $_POST['nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['nonce'] ) ) : '';
 
-		if ( ! wp_verify_nonce( $nonce, 'alynt_pu_check_' . $plugin_file ) ) {
-			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'alynt-plugin-updater' ) ), 403 );
+		if ( ! check_ajax_referer( 'alynt_pu_check_' . $plugin_file, 'nonce', false ) ) {
+			wp_send_json_error( array( 'message' => __( 'Security check failed. Please refresh the page and try again.', 'alynt-plugin-updater' ) ), 403 );
 		}
 
 		if ( ! current_user_can( 'update_plugins' ) ) {

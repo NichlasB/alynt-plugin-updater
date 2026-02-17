@@ -176,8 +176,11 @@ class Plugin_Scanner {
 
 		if ( 0 === strpos( $uri, 'http://' ) || 0 === strpos( $uri, 'https://' ) ) {
 			$parts = wp_parse_url( $uri );
-			$path  = isset( $parts['path'] ) ? $parts['path'] : '';
-			$path  = trim( (string) $path, '/' );
+			if ( ! is_array( $parts ) ) {
+				return null;
+			}
+			$path = isset( $parts['path'] ) ? $parts['path'] : '';
+			$path = trim( (string) $path, '/' );
 		} else {
 			$path = $uri;
 		}

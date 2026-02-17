@@ -162,18 +162,25 @@ class Settings {
 	 * @return void
 	 */
 	public function ajax_check_all_updates(): void {
-		$nonce = isset( $_POST['nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['nonce'] ) ) : '';
-		if ( ! wp_verify_nonce( $nonce, 'alynt_pu_check_all' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'alynt-plugin-updater' ) ), 403 );
+		if ( ! check_ajax_referer( 'alynt_pu_check_all', 'nonce', false ) ) {
+			wp_send_json_error( array( 'message' => __( 'Security check failed. Please refresh the page and try again.', 'alynt-plugin-updater' ) ), 403 );
 		}
 
 		if ( ! current_user_can( 'update_plugins' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'alynt-plugin-updater' ) ), 403 );
 		}
 
+		$lock_key = 'alynt_pu_checking_all';
+		if ( get_transient( $lock_key ) ) {
+			wp_send_json_error( array( 'message' => __( 'An update check is already in progress. Please wait a moment and try again.', 'alynt-plugin-updater' ) ), 429 );
+		}
+		set_transient( $lock_key, true, 2 * MINUTE_IN_SECONDS );
+
 		$results = $this->update_checker->check_all_updates( true );
 		update_option( 'alynt_pu_last_check', time() );
 		delete_site_transient( 'update_plugins' );
+
+		delete_transient( $lock_key );
 
 		wp_send_json_success( array( 'results' => $results ) );
 	}
@@ -272,9 +279,8 @@ class Settings {
 	 * @return void
 	 */
 	public function ajax_generate_secret(): void {
-		$nonce = isset( $_POST['nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['nonce'] ) ) : '';
-		if ( ! wp_verify_nonce( $nonce, 'alynt_pu_generate_secret' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'alynt-plugin-updater' ) ), 403 );
+		if ( ! check_ajax_referer( 'alynt_pu_generate_secret', 'nonce', false ) ) {
+			wp_send_json_error( array( 'message' => __( 'Security check failed. Please refresh the page and try again.', 'alynt-plugin-updater' ) ), 403 );
 		}
 
 		if ( ! current_user_can( 'manage_options' ) ) {
