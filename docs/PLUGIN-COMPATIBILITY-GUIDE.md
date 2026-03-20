@@ -52,7 +52,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -61,7 +61,7 @@ jobs:
           tools: composer:v2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
 
@@ -78,6 +78,7 @@ jobs:
           fi
 
       - name: Create plugin zip
+        id: create_zip
         run: |
           # CHANGE THIS to your plugin's folder name
           PLUGIN_SLUG="your-plugin-slug"
@@ -110,12 +111,12 @@ jobs:
           cd build
           zip -r ${PLUGIN_SLUG}-${VERSION}.zip ${PLUGIN_SLUG}
           
-          echo "ZIP_FILE=${PLUGIN_SLUG}-${VERSION}.zip" >> $GITHUB_ENV
+          echo "zip_file=${PLUGIN_SLUG}-${VERSION}.zip" >> $GITHUB_OUTPUT
 
       - name: Upload release asset
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-          files: build/${{ env.ZIP_FILE }}
+          files: build/${{ steps.create_zip.outputs.zip_file }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -164,6 +165,25 @@ git tag v1.0.1
 git push origin v1.0.1
 # Then create the release on GitHub web interface
 ```
+
+### Via GitHub CLI (Fully Automated):
+
+If the GitHub CLI (`gh`) is installed and authenticated, you can create and publish the release directly from the command line without using the web interface:
+
+```bash
+# After committing version changes
+git tag -a v1.0.1 -m "Release v1.0.1"
+git push origin v1.0.1
+
+# Create and publish the release in one step
+gh release create v1.0.1 \
+  --title "v1.0.1 - Brief title here" \
+  --notes "Release notes here."
+```
+
+This triggers the `Build Release` workflow immediately (since it fires on `release: published`), which builds and attaches the plugin `.zip` asset automatically.
+
+Install the GitHub CLI: https://cli.github.com
 
 ---
 
