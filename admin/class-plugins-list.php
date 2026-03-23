@@ -87,10 +87,10 @@ class Plugins_List {
 		}
 
 		$links[] = sprintf(
-			'<button type="button" class="button-link alynt-pu-check-update" data-plugin="%s" data-nonce="%s">%s</button>',
+			'<button type="button" class="button-link alynt-pu-check-update" data-plugin="%s" data-nonce="%s">%s</button><span class="screen-reader-text alynt-pu-check-update-status" aria-live="polite" aria-atomic="true"></span>',
 			esc_attr( $plugin_file ),
 			esc_attr( wp_create_nonce( 'alynt_pu_check_' . $plugin_file ) ),
-			esc_html__( 'Check for updates', 'alynt-plugin-updater' )
+			esc_html__( 'Check for Updates', 'alynt-plugin-updater' )
 		);
 
 		return $links;
@@ -126,12 +126,12 @@ class Plugins_List {
 		}
 
 		if ( ! current_user_can( 'update_plugins' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'alynt-plugin-updater' ) ), 403 );
+			wp_send_json_error( array( 'message' => __( 'You do not have permission to check plugin updates. Contact your site administrator if you believe this is incorrect.', 'alynt-plugin-updater' ) ), 403 );
 		}
 
 		$github_data = $this->scanner->get_plugin_github_data( $plugin_file );
 		if ( ! $github_data ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid plugin.', 'alynt-plugin-updater' ) ), 400 );
+			wp_send_json_error( array( 'message' => __( 'This plugin could not be checked for updates because it is not registered as a supported GitHub-managed plugin.', 'alynt-plugin-updater' ) ), 400 );
 		}
 
 		$this->github_api->clear_cache( $github_data['owner'], $github_data['repo'] );

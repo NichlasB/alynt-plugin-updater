@@ -131,12 +131,20 @@ class Settings {
 		$plugins = $this->scanner->get_github_plugins();
 		$results = $this->update_checker->get_stored_results();
 
-		$frequency_options     = $this->get_frequency_options();
-		$webhook_url           = $this->webhook_handler->get_webhook_url();
-		$check_all_nonce       = wp_create_nonce( 'alynt_pu_check_all' );
-		$generate_secret_nonce = wp_create_nonce( 'alynt_pu_generate_secret' );
-		$cache_duration_min    = Config::CACHE_DURATION_MIN;
-		$cache_duration_max    = Config::CACHE_DURATION_MAX;
+		$frequency_options          = $this->get_frequency_options();
+		$webhook_url                = $this->webhook_handler->get_webhook_url();
+		$check_all_nonce            = wp_create_nonce( 'alynt_pu_check_all' );
+		$generate_secret_nonce      = wp_create_nonce( 'alynt_pu_generate_secret' );
+		$cache_duration_min         = Config::CACHE_DURATION_MIN;
+		$cache_duration_max         = Config::CACHE_DURATION_MAX;
+		$cache_duration_error       = get_settings_errors( Config::CACHE_DURATION_OPTION );
+		$cache_duration_field_value = get_transient( 'alynt_pu_cache_duration_invalid_input' );
+
+		if ( false !== $cache_duration_field_value ) {
+			delete_transient( 'alynt_pu_cache_duration_invalid_input' );
+		} else {
+			$cache_duration_field_value = (string) $cache_duration;
+		}
 
 		Asset_Manager::enqueue_admin_assets();
 		Asset_Manager::localize_admin_script( $this->get_settings_localization_data( $check_all_nonce, $generate_secret_nonce ) );
@@ -167,12 +175,12 @@ class Settings {
 		}
 
 		if ( ! current_user_can( 'update_plugins' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'alynt-plugin-updater' ) ), 403 );
+			wp_send_json_error( array( 'message' => __( 'You do not have permission to check plugin updates. Contact your site administrator if you believe this is incorrect.', 'alynt-plugin-updater' ) ), 403 );
 		}
 
 		$lock_key = 'alynt_pu_checking_all';
 		if ( get_transient( $lock_key ) ) {
-			wp_send_json_error( array( 'message' => __( 'An update check is already in progress. Please wait a moment and try again.', 'alynt-plugin-updater' ) ), 429 );
+			wp_send_json_error( array( 'message' => __( 'An update check is already in progress. Please wait a moment, then try again.', 'alynt-plugin-updater' ) ), 429 );
 		}
 		set_transient( $lock_key, true, 2 * MINUTE_IN_SECONDS );
 
@@ -211,12 +219,13 @@ class Settings {
 		$clamped   = max( Config::CACHE_DURATION_MIN, min( Config::CACHE_DURATION_MAX, $sanitized ) );
 
 		if ( $clamped !== $sanitized ) {
+			set_transient( 'alynt_pu_cache_duration_invalid_input', (string) $value, MINUTE_IN_SECONDS );
 			add_settings_error(
 				Config::CACHE_DURATION_OPTION,
 				'cache_duration_clamped',
 				sprintf(
 					/* translators: 1: minimum value, 2: maximum value */
-					__( 'Cache duration must be between %1$d and %2$d seconds. Your value has been adjusted.', 'alynt-plugin-updater' ),
+					__( 'Cache duration must be between %1$d and %2$d seconds. Enter a value in that range and save the settings again.', 'alynt-plugin-updater' ),
 					Config::CACHE_DURATION_MIN,
 					Config::CACHE_DURATION_MAX
 				),
@@ -256,15 +265,18 @@ class Settings {
 			array(
 				'checkingAll'           => __( 'Checking all updates...', 'alynt-plugin-updater' ),
 				'checkAllComplete'      => __( 'Check complete.', 'alynt-plugin-updater' ),
-				'checkAllFailed'        => __( 'Check failed.', 'alynt-plugin-updater' ),
-				/* translators: 1: total count, 2: updates count, 3: error count */
-				'checkAllSummary'       => __( '%1$d plugins checked: %2$d update(s) available, %3$d error(s).', 'alynt-plugin-updater' ),
-				'copied'                => __( 'Copied!', 'alynt-plugin-updater' ),
-				'copyFailed'            => __( 'Copy failed.', 'alynt-plugin-updater' ),
+				'checkAllFailed'        => __( 'Could not complete the update check. Please try again.', 'alynt-plugin-updater' ),
+				'checkAllSummary'       => __( '%1$d plugins checked: %2$d %3$s available, %4$d %5$s.', 'alynt-plugin-updater' ),
+				'singleUpdateLabel'     => __( 'update', 'alynt-plugin-updater' ),
+				'multipleUpdatesLabel'  => __( 'updates', 'alynt-plugin-updater' ),
+				'singleErrorLabel'      => __( 'error', 'alynt-plugin-updater' ),
+				'multipleErrorsLabel'   => __( 'errors', 'alynt-plugin-updater' ),
+				'copied'                => __( 'Copied.', 'alynt-plugin-updater' ),
+				'copyFailed'            => __( 'Could not copy that value. Please copy it manually.', 'alynt-plugin-updater' ),
 				'generatingSecret'      => __( 'Generating...', 'alynt-plugin-updater' ),
 				'secretGenerated'       => __( 'New secret generated.', 'alynt-plugin-updater' ),
-				'secretFailed'          => __( 'Failed to generate secret.', 'alynt-plugin-updater' ),
-				'confirmGenerateSecret' => __( "Generate a new webhook secret?\n\nYour existing GitHub webhook configuration will stop working until you update the secret in your repository's webhook settings.", 'alynt-plugin-updater' ),
+				'secretFailed'          => __( 'Could not generate a new secret. Please try again.', 'alynt-plugin-updater' ),
+				'confirmGenerateSecret' => __( "Generate a new webhook secret?\n\nThis replaces your current secret immediately. Your existing GitHub webhook configuration will stop working until you update it with the new secret.", 'alynt-plugin-updater' ),
 				'networkError'          => __( 'You appear to be offline. Check your connection and try again.', 'alynt-plugin-updater' ),
 				'checkAllNonce'         => $check_all_nonce,
 				'generateSecretNonce'   => $generate_secret_nonce,
@@ -284,7 +296,7 @@ class Settings {
 		}
 
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'alynt-plugin-updater' ) ), 403 );
+			wp_send_json_error( array( 'message' => __( 'You do not have permission to manage webhook settings. Contact your site administrator if you believe this is incorrect.', 'alynt-plugin-updater' ) ), 403 );
 		}
 
 		$secret = Webhook_Handler::generate_secret();

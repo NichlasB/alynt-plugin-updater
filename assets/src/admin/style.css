@@ -25,6 +25,24 @@
   font-weight: 600;
 }
 
+.alynt-plugin-updater-empty-state {
+  padding: 1rem 0;
+}
+
+.alynt-plugin-updater-empty-state h3 {
+  margin: 0 0 0.5rem;
+}
+
+.alynt-plugin-updater-empty-state p {
+  margin: 0 0 0.75rem;
+}
+
+.alynt-pu-field-error {
+  margin: 0.5rem 0 0;
+  color: #d63638;
+  font-weight: 600;
+}
+
 .alynt-pu-plugins-table td,
 .alynt-pu-plugins-table th {
   vertical-align: top;

@@ -20,11 +20,15 @@ if ( $rate_limit_reset ) {
 		date_i18n( 'Y-m-d H:i:s', (int) $rate_limit_reset )
 	);
 }
-?>
 
+$cache_duration_error_message = ! empty( $cache_duration_error ) && ! empty( $cache_duration_error[0]['message'] )
+	? wp_strip_all_tags( (string) $cache_duration_error[0]['message'] )
+	: '';
+?>
 <div class="wrap alynt-pu-settings">
 	<h1><?php echo esc_html__( 'Alynt Plugin Updater', 'alynt-plugin-updater' ); ?></h1>
 	<?php settings_errors(); ?>
+	<hr class="wp-header-end">
 
 	<form method="post" action="options.php">
 		<?php settings_fields( 'alynt_pu_settings' ); ?>
@@ -49,13 +53,16 @@ if ( $rate_limit_reset ) {
 					<label for="alynt_pu_cache_duration"><?php echo esc_html__( 'Cache Duration (seconds)', 'alynt-plugin-updater' ); ?></label>
 				</th>
 				<td>
-					<input type="number" class="small-text" id="alynt_pu_cache_duration" name="alynt_pu_cache_duration" value="<?php echo esc_attr( $cache_duration ); ?>" min="<?php echo esc_attr( $cache_duration_min ); ?>" max="<?php echo esc_attr( $cache_duration_max ); ?>" aria-describedby="alynt-pu-cache-duration-desc" />
+					<input type="number" class="small-text" id="alynt_pu_cache_duration" name="alynt_pu_cache_duration" value="<?php echo esc_attr( $cache_duration_field_value ); ?>" min="<?php echo esc_attr( $cache_duration_min ); ?>" max="<?php echo esc_attr( $cache_duration_max ); ?>" aria-describedby="alynt-pu-cache-duration-desc<?php echo $cache_duration_error_message ? ' alynt-pu-cache-duration-error' : ''; ?>" <?php echo $cache_duration_error_message ? 'aria-invalid="true"' : ''; ?> />
 					<p class="description" id="alynt-pu-cache-duration-desc"><?php echo esc_html__( 'How long to cache GitHub API responses.', 'alynt-plugin-updater' ); ?></p>
+					<?php if ( $cache_duration_error_message ) : ?>
+						<p id="alynt-pu-cache-duration-error" class="alynt-pu-field-error" role="alert"><?php echo esc_html( $cache_duration_error_message ); ?></p>
+					<?php endif; ?>
 				</td>
 			</tr>
 		</table>
 
-		<?php submit_button(); ?>
+		<?php submit_button( __( 'Save Settings', 'alynt-plugin-updater' ) ); ?>
 	</form>
 
 	<hr />
@@ -144,7 +151,13 @@ if ( $rate_limit_reset ) {
 		<tbody>
 			<?php if ( empty( $plugins ) ) : ?>
 				<tr>
-					<td colspan="5"><?php echo esc_html__( 'No GitHub-managed plugins found.', 'alynt-plugin-updater' ); ?></td>
+					<td colspan="5">
+						<div class="alynt-plugin-updater-empty-state">
+							<h3><?php echo esc_html__( 'No Registered Plugins Yet', 'alynt-plugin-updater' ); ?></h3>
+							<p><?php echo esc_html__( 'GitHub-managed plugins will appear here after the updater detects a supported plugin on this site.', 'alynt-plugin-updater' ); ?></p>
+							<p><?php echo esc_html__( 'Add the required GitHub plugin headers to a plugin, then refresh this page to check again.', 'alynt-plugin-updater' ); ?></p>
+						</div>
+					</td>
 				</tr>
 			<?php else : ?>
 				<?php foreach ( $plugins as $plugin_file => $plugin_data ) : ?>
