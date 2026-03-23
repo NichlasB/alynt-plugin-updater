@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-03-23
+
+### Style
+- Align admin UI with WordPress design system guide
+- Add empty-state and validation-error styles
+- Add proper disabled + aria-disabled + aria-busy state to update buttons
+- Add dedicated aria-live region for status updates
+
+### Improved
+- Add inline field-level validation for cache duration (aria-invalid, role=alert)
+- Preserve invalid cache-duration input across validation round-trip
+- Replace raw "No GitHub-managed plugins found" row with structured empty state
+- Rewrite permission-denied and invalid-plugin error messages in plain language
+- Replace update(s)/error(s) pattern with proper singular/plural localization
+
 ## [1.1.0] - 2026-03-20
 
 ### Changed

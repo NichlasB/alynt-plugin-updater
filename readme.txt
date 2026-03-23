@@ -4,7 +4,7 @@ Tags: updates, github, plugins
 Requires at least: 6.0
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPL v2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -45,6 +45,14 @@ No. This plugin only supports public GitHub repositories.
 No. This plugin uses the public GitHub API and caches responses.
 
 == Changelog ==
+
+= 1.1.1 =
+* Align admin UI with WordPress design system guide.
+* Add proper disabled + aria-disabled + aria-busy state to update buttons.
+* Add dedicated aria-live region for status updates.
+* Add inline field-level validation for cache duration.
+* Improve empty state presentation for "no plugins found".
+* Rewrite error messages in plain language with proper singular/plural localization.
 
 = 1.1.0 =
 * Refactored the plugin toward a clearer service-based architecture.
