@@ -69,7 +69,7 @@ jobs:
                     --exclude='*.map' \
                     --exclude='RELEASE-*.md' \
                     --exclude='IMPLEMENTATION-*.md' \
-                    --exclude='.windsurfrules' \
+                    --exclude='AI_CODING_RULES.md' \
                     ./ build/${PLUGIN_SLUG}/
 
           cd build
