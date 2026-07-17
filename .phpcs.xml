@@ -9,7 +9,7 @@
   <exclude-pattern>node_modules/*</exclude-pattern>
   <exclude-pattern>assets/dist/*</exclude-pattern>
 
-  <config name="installed_paths" value="vendor/wp-coding-standards/wpcs" />
+  <config name="installed_paths" value="vendor/wp-coding-standards/wpcs,vendor/phpcsstandards/phpcsextra,vendor/phpcsstandards/phpcsutils" />
   <config name="text_domain" value="alynt-plugin-updater" />
   <config name="minimum_supported_wp_version" value="6.0" />
 </ruleset>

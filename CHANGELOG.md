@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2026-07-17
+
+### Fixed
+- Restore active state for managed plugins after successful programmatic/headless plugin updates
+- Repair PHPCS standards path so WPCS can resolve PHPCSExtra and PHPCSUtils dependencies
+
+### Security
+- Update Composer and NPM development dependency locks to clear audit advisories
+
 ## [1.1.1] - 2026-03-23
 
 ### Style

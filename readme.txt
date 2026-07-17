@@ -4,7 +4,7 @@ Tags: updates, github, plugins
 Requires at least: 6.0
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.1.1
+Stable tag: 1.1.2
 License: GPL v2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -45,6 +45,11 @@ No. This plugin only supports public GitHub repositories.
 No. This plugin uses the public GitHub API and caches responses.
 
 == Changelog ==
+
+= 1.1.2 =
+* Restore active state for managed plugins after successful programmatic/headless plugin updates.
+* Update development dependency locks to clear Composer and NPM audit advisories.
+* Repair the PHPCS standards path used by local coding-standards checks.
 
 = 1.1.1 =
 * Align admin UI with WordPress design system guide.

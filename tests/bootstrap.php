@@ -6,7 +6,7 @@
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
-	exit;
+	define( 'ABSPATH', dirname( __DIR__ ) . '/tests/wp-stubs/' );
 }
 
 require_once __DIR__ . '/../vendor/autoload.php';

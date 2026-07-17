@@ -27,10 +27,12 @@ class Service_Factory {
 	 *     version_util:    Version_Util,
 	 *     github_api:      GitHub_API,
 	 *     update_checker:  Update_Checker,
-	 *     webhook_handler: Webhook_Handler
+	 *     webhook_handler: Webhook_Handler,
+	 *     active_restorer: Active_Plugin_Restorer
 	 * }
 	 */
 	public static function create_runtime_services(): array {
+
 		$scanner         = new Plugin_Scanner();
 		$version_util    = new Version_Util();
 		$logger          = new Logger();
@@ -40,6 +42,7 @@ class Service_Factory {
 		$source_fixer    = new Source_Directory_Fixer( $scanner );
 		$update_checker  = new Update_Checker( $scanner, $github_api, $version_util, $source_fixer, $logger );
 		$webhook_handler = new Webhook_Handler( $scanner, $github_api, $update_checker, $logger );
+		$active_restorer = new Active_Plugin_Restorer( $scanner, $logger );
 
 		return array(
 			'logger'          => $logger,
@@ -48,6 +51,7 @@ class Service_Factory {
 			'github_api'      => $github_api,
 			'update_checker'  => $update_checker,
 			'webhook_handler' => $webhook_handler,
+			'active_restorer' => $active_restorer,
 		);
 	}
 }

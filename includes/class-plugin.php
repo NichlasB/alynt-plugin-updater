@@ -55,6 +55,14 @@ class Plugin {
 	private Webhook_Handler $webhook_handler;
 
 	/**
+	 * Active plugin restorer.
+	 *
+	 * @since 1.1.2
+	 * @var   Active_Plugin_Restorer
+	 */
+	private Active_Plugin_Restorer $active_restorer;
+
+	/**
 	 * Admin menu.
 	 *
 	 * @since 1.0.0
@@ -116,9 +124,14 @@ class Plugin {
 		$this->scanner         = $services['scanner'];
 		$this->update_checker  = $services['update_checker'];
 		$this->webhook_handler = $services['webhook_handler'];
+		$this->active_restorer = $services['active_restorer'];
 		$this->cron_manager    = new Cron_Manager( $this->update_checker, $services['logger'] );
 
-		/** @var GitHub_API $github_api */
+		/**
+		 * GitHub API service.
+		 *
+		 * @var GitHub_API $github_api
+		 */
 		$github_api = $services['github_api'];
 
 		if ( is_admin() ) {
@@ -137,6 +150,7 @@ class Plugin {
 	private function register_hooks(): void {
 		$this->scanner->register_hooks();
 		$this->update_checker->register_hooks();
+		$this->active_restorer->register_hooks();
 		$this->cron_manager->register_hooks();
 
 		add_action( 'rest_api_init', array( $this->webhook_handler, 'register_rest_route' ) );
