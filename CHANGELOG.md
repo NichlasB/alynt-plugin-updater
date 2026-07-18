@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.3] - 2026-07-18
+
+### Fixed
+- Reconcile managed active plugins at the end of the update request so later callbacks cannot leave them reordered
+- Run the primary active-state restoration at the latest update-complete priority
+
+### Tests
+- Add executable lifecycle coverage for core deactivation, reactivation, exact position restoration, and late callback reordering
+
 ## [1.1.2] - 2026-07-17
 
 ### Fixed

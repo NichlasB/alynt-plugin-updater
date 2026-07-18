@@ -50,6 +50,22 @@ class Active_Plugin_Restorer {
 	private array $snapshots = array();
 
 	/**
+	 * Completed active-plugin snapshots awaiting final request shutdown verification.
+	 *
+	 * @since 1.1.3
+	 * @var array<string, array{active: bool, position: int|false}>
+	 */
+	private array $pending_finalizations = array();
+
+	/**
+	 * Whether the final shutdown reconciliation hook has been registered.
+	 *
+	 * @since 1.1.3
+	 * @var bool
+	 */
+	private bool $shutdown_hook_registered = false;
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 1.1.2
@@ -69,7 +85,7 @@ class Active_Plugin_Restorer {
 	 */
 	public function register_hooks(): void {
 		add_filter( 'upgrader_pre_install', array( $this, 'snapshot_before_install' ), 1, 2 );
-		add_action( 'upgrader_process_complete', array( $this, 'restore_after_upgrade' ), 20, 2 );
+		add_action( 'upgrader_process_complete', array( $this, 'restore_after_upgrade' ), PHP_INT_MAX, 2 );
 	}
 
 	/**
@@ -114,13 +130,36 @@ class Active_Plugin_Restorer {
 		}
 
 		foreach ( $plugin_files as $plugin_file ) {
-			if ( empty( $this->snapshots[ $plugin_file ] ) || empty( $this->snapshots[ $plugin_file ]['active'] ) ) {
+			if ( empty( $this->snapshots[ $plugin_file ] ) ) {
 				continue;
 			}
 
-			$this->restore_plugin_active_state( $plugin_file, $this->snapshots[ $plugin_file ] );
+			$snapshot = $this->snapshots[ $plugin_file ];
 			unset( $this->snapshots[ $plugin_file ] );
+
+			if ( empty( $snapshot['active'] ) ) {
+				continue;
+			}
+
+			$this->pending_finalizations[ $plugin_file ] = $snapshot;
+			$this->restore_plugin_active_state( $plugin_file, $snapshot );
 		}
+
+		$this->register_shutdown_reconciliation();
+	}
+
+	/**
+	 * Reconcile completed plugin updates after all other request callbacks run.
+	 *
+	 * @since 1.1.3
+	 * @return void
+	 */
+	public function finalize_restorations(): void {
+		foreach ( $this->pending_finalizations as $plugin_file => $snapshot ) {
+			$this->restore_plugin_active_state( $plugin_file, $snapshot );
+		}
+
+		$this->pending_finalizations = array();
 	}
 
 	/**
@@ -265,5 +304,20 @@ class Active_Plugin_Restorer {
 		if ( ! function_exists( 'is_plugin_active' ) || ! function_exists( 'activate_plugin' ) ) {
 			require_once ABSPATH . 'wp-admin/includes/plugin.php';
 		}
+	}
+
+	/**
+	 * Register one late request reconciliation for completed active plugin updates.
+	 *
+	 * @since 1.1.3
+	 * @return void
+	 */
+	private function register_shutdown_reconciliation(): void {
+		if ( $this->shutdown_hook_registered || empty( $this->pending_finalizations ) ) {
+			return;
+		}
+
+		$this->shutdown_hook_registered = true;
+		add_action( 'shutdown', array( $this, 'finalize_restorations' ), PHP_INT_MAX );
 	}
 }

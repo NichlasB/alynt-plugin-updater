@@ -13,6 +13,7 @@ A lightweight WordPress plugin that enables automatic updates for GitHub-hosted 
 - Configurable check frequency (every 6, 12, 24 hours, or weekly)
 - GitHub API rate limit tracking and handling
 - Comprehensive caching system to minimize API requests
+- Preserves managed plugins' active state and active-list order during programmatic updates
 
 ## Requirements
 

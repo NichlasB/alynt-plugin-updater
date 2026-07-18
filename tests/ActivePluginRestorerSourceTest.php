@@ -38,6 +38,9 @@ class Alynt_Plugin_Updater_Active_Plugin_Restorer_Source_Test extends TestCase {
 		$this->assertStringContainsString( "add_action( 'upgrader_process_complete'", $source );
 		$this->assertStringContainsString( 'snapshot_before_install', $source );
 		$this->assertStringContainsString( 'restore_after_upgrade', $source );
+		$this->assertStringContainsString( 'finalize_restorations', $source );
+		$this->assertStringContainsString( "add_action( 'shutdown'", $source );
+		$this->assertStringContainsString( 'PHP_INT_MAX', $source );
 		$this->assertStringContainsString( 'activate_plugin( $plugin_file', $source );
 		$this->assertStringContainsString( "update_option( 'active_plugins'", $source );
 	}
