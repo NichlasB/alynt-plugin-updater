@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Clear stale managed-plugin entries from WordPress update responses when the cached release is no longer newer than the installed plugin
+- Refresh stored updater status after managed plugin updates complete so admin status no longer shows the just-installed release as still pending
+
+### Tests
+- Add regression coverage for stale native update responses and post-upgrade stored-result refreshes
+
 ## [1.1.3] - 2026-07-18
 
 ### Fixed

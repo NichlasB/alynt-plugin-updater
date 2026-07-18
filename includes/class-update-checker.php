@@ -9,6 +9,7 @@ namespace Alynt\PluginUpdater;
 
 use stdClass;
 use WP_Error;
+use WP_Upgrader;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -64,11 +65,11 @@ class Update_Checker {
 	 * Constructor.
 	 *
 	 * @since 1.0.0
-	 * @param Plugin_Scanner        $scanner      Plugin scanner.
-	 * @param GitHub_API            $github_api   GitHub API client.
-	 * @param Version_Util          $version_util Version utility.
+	 * @param Plugin_Scanner         $scanner      Plugin scanner.
+	 * @param GitHub_API             $github_api   GitHub API client.
+	 * @param Version_Util           $version_util Version utility.
 	 * @param Source_Directory_Fixer $source_fixer Source directory fixer.
-	 * @param Logger                $logger       Logger.
+	 * @param Logger                 $logger       Logger.
 	 */
 	public function __construct( Plugin_Scanner $scanner, GitHub_API $github_api, Version_Util $version_util, Source_Directory_Fixer $source_fixer, Logger $logger ) {
 		$this->scanner      = $scanner;
@@ -88,6 +89,7 @@ class Update_Checker {
 		add_filter( 'pre_set_site_transient_update_plugins', array( $this, 'check_for_updates' ) );
 		add_filter( 'plugins_api', array( $this, 'plugin_information' ), 10, 3 );
 		add_filter( 'upgrader_source_selection', array( $this->source_fixer, 'fix_source_directory' ), 10, 4 );
+		add_action( 'upgrader_process_complete', array( $this, 'refresh_after_plugin_upgrade' ), 20, 2 );
 	}
 
 	/**
@@ -110,10 +112,12 @@ class Update_Checker {
 		foreach ( $plugins as $plugin_file => $plugin_data ) {
 			$release = $this->github_api->get_latest_release( $plugin_data['owner'], $plugin_data['repo'], false, true );
 			if ( is_wp_error( $release ) ) {
+				unset( $transient->response[ $plugin_file ] );
 				continue;
 			}
 
 			if ( empty( $release['download_url'] ) ) {
+				unset( $transient->response[ $plugin_file ] );
 				$this->logger->warning(
 					'Release has no download URL, skipping update entry.',
 					array(
@@ -127,25 +131,71 @@ class Update_Checker {
 
 			$current_version = $plugin_data['version'];
 			if ( ! $this->version_util->is_update_available( $current_version, $release['version'] ) ) {
+				unset( $transient->response[ $plugin_file ] );
 				continue;
 			}
 
-			$slug = dirname( $plugin_file );
+			$slug                                = dirname( $plugin_file );
 			$transient->response[ $plugin_file ] = (object) array(
-				'slug'         => $slug,
-				'plugin'       => $plugin_file,
-				'new_version'  => $release['version'],
-				'url'          => $plugin_data['plugin_uri'],
-				'package'      => $release['download_url'],
-				'icons'        => array(),
-				'banners'      => array(),
-				'tested'       => '',
-				'requires_php' => '',
+				'slug'          => $slug,
+				'plugin'        => $plugin_file,
+				'new_version'   => $release['version'],
+				'url'           => $plugin_data['plugin_uri'],
+				'package'       => $release['download_url'],
+				'icons'         => array(),
+				'banners'       => array(),
+				'tested'        => '',
+				'requires_php'  => '',
 				'compatibility' => new stdClass(),
 			);
 		}
 
 		return $transient;
+	}
+
+	/**
+	 * Refresh stored update results after WordPress completes a managed plugin update.
+	 *
+	 * @since 1.1.4
+	 * @param WP_Upgrader $upgrader   Upgrader instance.
+	 * @param array       $hook_extra Extra upgrader context.
+	 * @return void
+	 */
+	public function refresh_after_plugin_upgrade( WP_Upgrader $upgrader, array $hook_extra ): void {
+		unset( $upgrader );
+
+		$plugin_files = $this->get_completed_plugin_files( $hook_extra );
+		if ( empty( $plugin_files ) ) {
+			return;
+		}
+
+		$stored_results = $this->get_stored_results();
+		$refreshed      = false;
+
+		foreach ( $plugin_files as $plugin_file ) {
+			$plugin_data = $this->scanner->get_plugin_github_data( $plugin_file );
+			if ( null === $plugin_data ) {
+				continue;
+			}
+
+			$release = $this->github_api->get_latest_release( $plugin_data['owner'], $plugin_data['repo'], false, true );
+			if ( is_wp_error( $release ) ) {
+				unset( $stored_results[ $plugin_file ] );
+				$refreshed = true;
+				continue;
+			}
+
+			$stored_results[ $plugin_file ] = $this->build_release_result( (string) $plugin_data['version'], $release );
+			$refreshed                      = true;
+		}
+
+		if ( ! $refreshed ) {
+			return;
+		}
+
+		update_option( 'alynt_pu_last_results', $stored_results, false );
+		update_option( 'alynt_pu_last_check', time(), false );
+		delete_site_transient( 'update_plugins' );
 	}
 
 	/**
@@ -193,7 +243,7 @@ class Update_Checker {
 		}
 
 		$current_version = (string) $plugin_data['version'];
-		$release = $this->github_api->get_latest_release( $plugin_data['owner'], $plugin_data['repo'] );
+		$release         = $this->github_api->get_latest_release( $plugin_data['owner'], $plugin_data['repo'] );
 		if ( is_wp_error( $release ) ) {
 			return $this->build_error_result( $current_version, $release );
 		}
@@ -214,7 +264,7 @@ class Update_Checker {
 
 		foreach ( $plugins as $plugin_file => $plugin_data ) {
 			$current_version = (string) $plugin_data['version'];
-			$release = $this->github_api->get_latest_release( $plugin_data['owner'], $plugin_data['repo'], $force_fresh );
+			$release         = $this->github_api->get_latest_release( $plugin_data['owner'], $plugin_data['repo'], $force_fresh );
 			if ( is_wp_error( $release ) ) {
 				$this->logger->warning(
 					'Update check failed for plugin.',
@@ -313,18 +363,18 @@ class Update_Checker {
 	 * @return object Plugin info object.
 	 */
 	private function build_plugin_info( string $plugin_file, array $plugin_data, array $release ): object {
-		$info              = new stdClass();
-		$info->name         = $plugin_data['name'];
-		$info->slug         = dirname( $plugin_file );
-		$info->version      = $release['version'];
-		$info->author       = $plugin_data['author'];
-		$info->homepage     = $plugin_data['plugin_uri'];
+		$info                = new stdClass();
+		$info->name          = $plugin_data['name'];
+		$info->slug          = dirname( $plugin_file );
+		$info->version       = $release['version'];
+		$info->author        = $plugin_data['author'];
+		$info->homepage      = $plugin_data['plugin_uri'];
 		$info->download_link = $release['download_url'];
-		$info->last_updated = '';
-		$info->sections     = array();
+		$info->last_updated  = '';
+		$info->sections      = array();
 
 		if ( ! empty( $release['published_at'] ) ) {
-			$timestamp         = strtotime( $release['published_at'] );
+			$timestamp          = strtotime( $release['published_at'] );
 			$info->last_updated = $timestamp ? date_i18n( 'Y-m-d', $timestamp ) : '';
 		}
 
@@ -337,5 +387,28 @@ class Update_Checker {
 		$info->sections['changelog']   = wp_kses_post( wpautop( (string) $release['changelog'] ) );
 
 		return $info;
+	}
+
+	/**
+	 * Resolve completed plugin files from upgrader hook context.
+	 *
+	 * @since 1.1.4
+	 * @param array $hook_extra Extra upgrader context.
+	 * @return array<int, string> Plugin files.
+	 */
+	private function get_completed_plugin_files( array $hook_extra ): array {
+		if ( 'update' !== ( $hook_extra['action'] ?? '' ) || 'plugin' !== ( $hook_extra['type'] ?? '' ) ) {
+			return array();
+		}
+
+		if ( ! empty( $hook_extra['plugins'] ) && is_array( $hook_extra['plugins'] ) ) {
+			return array_values( array_filter( $hook_extra['plugins'], 'is_string' ) );
+		}
+
+		if ( ! empty( $hook_extra['plugin'] ) && is_string( $hook_extra['plugin'] ) ) {
+			return array( $hook_extra['plugin'] );
+		}
+
+		return array();
 	}
 }
