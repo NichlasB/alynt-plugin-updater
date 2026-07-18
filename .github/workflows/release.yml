@@ -55,6 +55,7 @@ jobs:
                     --exclude='assets/src' \
                     --exclude='.gitignore' \
                     --exclude='.gitattributes' \
+                    --exclude='.distignore' \
                     --exclude='.phpcs.xml' \
                     --exclude='.eslintrc.json' \
                     --exclude='phpunit.xml' \
@@ -64,6 +65,7 @@ jobs:
                     --exclude='package.json' \
                     --exclude='package-lock.json' \
                     --exclude='deploy.sh' \
+                    --exclude='deploy.example.sh' \
                     --exclude='README.md' \
                     --exclude='CHANGELOG.md' \
                     --exclude='*.map' \
